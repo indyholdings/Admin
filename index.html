@@ -268,7 +268,7 @@ tr:hover td{background:rgba(201,171,86,.04)}
 <div class="cd">
 <div class="cd-h"><h3>⚙️ ตั้งค่าระบบ</h3></div><div class="cd-b">
 <div class="fg"><label>🔗 Google Apps Script API URL</label><input id="CFG_api" placeholder="https://script.google.com/macros/s/xxxxx/exec"></div>
-<div class="fg"><label>🔔 LINE Notify Token</label><input id="CFG_line" placeholder="LINE Notify Token"></div>
+<div class="fg"><label>📨 LINE Messaging API — Channel Access Token</label><input id="CFG_line" placeholder="Channel Access Token จาก LINE Developers (ถ้ามี)"></div>
 <button class="btn btn-n" onclick="saveCfg()">💾 บันทึก</button>
 </div></div>
 
@@ -410,7 +410,7 @@ tr:hover td{background:rgba(201,171,86,.04)}
 <!-- ============================================================ -->
 <script>
 // ===== CONFIG =====
-var API_URL = localStorage.getItem('jf_api') || '';
+var API_URL = localStorage.getItem('jf_api') || 'https://script.google.com/macros/s/AKfycbzWNeqBgAT7XBPT7P6HUI_j3uuUafEFxxJao3wdrgiKM60N1CxLFhY-uOBC9Bkow03_kg/exec';
 var LINE_TOKEN = localStorage.getItem('jf_line') || '';
 var DEFAULT_USERS = [
   {user:'krist.c', pass:'indyza456', role:'Owner', name:'Indy'},
@@ -521,7 +521,8 @@ function renderDash(){
           '<div style="display:flex;gap:4px;width:100%">'+
             '<button class="btn btn-n btn-sm" onclick="openProfile('+a.i+')">👤 โปรไฟล์</button>'+
             '<button class="btn btn-gr btn-sm" onclick="openProfile('+a.i+');profTabFin()">💳 จัดการงวด</button>'+
-            '<button class="btn btn-bl btn-sm" onclick="sendLineNotify('+a.i+')">🔔 LINE Notify</button>'+
+            '<button class="btn btn-bl btn-sm" onclick="copyCollectMsg('+a.i+')">📋 Copy ทวง</button>'+
+            (LINE_TOKEN?'<button class="btn btn-gr btn-sm" onclick="sendLinePush('+a.i+')">📨 LINE Push</button>':'')+
             '<button class="btn btn-o btn-sm" onclick="openMemo('+a.i+')">📝 MEMO</button>'+
           '</div></div>'
       }).join('')+'</div>';
@@ -540,21 +541,35 @@ function renderDash(){
   }).join('');
 }
 
-// ===== LINE NOTIFY =====
-function sendLineNotify(i){
-  var r=DATA[i];if(!r)return;
+// ===== COLLECTION MESSAGE =====
+function buildCollectMsg(i){
+  var r=DATA[i];if(!r)return '';
   var remaining=(r.totalTerms||0)-(r.paidTerms||0);
-  var msg='\n🔔 JAIFU แจ้งเตือนทวงหนี้\n👤 '+r.name+' ('+r.id+')\n💰 ยอด ฿'+fmt(r.installment)+'\n📅 เหลืออีก '+remaining+' งวด\n📦 '+(r.product||'-')+'\n\nกรุณาชำระภายในวันนี้ — JAIFU Solutions 💛';
-  
-  if(LINE_TOKEN&&API_URL){
-    fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'lineNotify',token:LINE_TOKEN,message:msg})})
-    .then(function(res){return res.json()})
-    .then(function(d){alert(d.success?'✅ ส่ง LINE Notify เรียบร้อย!':'❌ '+d.error)})
-    .catch(function(){alert('❌ ไม่สามารถส่งได้')});
-  }else{
-    alert('📋 ข้อความที่จะส่ง:\n'+msg.replace(/\\n/g,'\n')+'\n\n⚠️ ใส่ LINE Notify Token ในหน้าตั้งค่าก่อน');
+  return '🔔 JAIFU แจ้งเตือนค่างวด\n\n👤 คุณ'+r.name+' ('+r.id+')\n💰 ยอดชำระ ฿'+fmt(r.installment)+'\n📅 เหลืออีก '+remaining+' งวด\n📦 '+(r.product||'-')+'\n\nกรุณาชำระภายในวันนี้\nJAIFU Solutions 💛';
+}
+function copyCollectMsg(i){
+  var msg=buildCollectMsg(i);if(!msg)return;
+  var clean=msg.replace(/\\n/g,'\n');
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(clean).then(function(){alert('✅ Copy แล้ว! เปิด LINE แล้ววางได้เลย')}).catch(function(){prompt('Copy ข้อความนี้:',clean)});
+  }else{prompt('Copy ข้อความนี้:',clean)}
+  var r=DATA[i];if(r){log(r,'📋 Copy ข้อความทวงหนี้');save()}
+}
+function sendLinePush(i){
+  var r=DATA[i];if(!r)return;
+  if(!LINE_TOKEN){alert('⚠️ ใส่ LINE Channel Access Token ในหน้าตั้งค่าก่อน');return}
+  if(!r.lineUserId){
+    alert('⚠️ ลูกค้านี้ยังไม่มี LINE User ID\n\nใช้ Copy ข้อความแทน');
+    copyCollectMsg(i);return;
   }
-  log(r,'🔔 ส่ง LINE Notify ทวงหนี้');save();
+  var msg=buildCollectMsg(i).replace(/\\n/g,'\n');
+  if(API_URL){
+    fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'linePush',token:LINE_TOKEN,userId:r.lineUserId,message:msg})})
+    .then(function(res){return res.json()})
+    .then(function(d){alert(d.success?'✅ ส่งข้อความ LINE เรียบร้อย!':'❌ '+d.error)})
+    .catch(function(){alert('❌ ส่งไม่ได้ — ลอง Copy แทน');copyCollectMsg(i)});
+  }
+  log(r,'📨 ส่ง LINE Push ทวงหนี้');save();
 }
 
 // ===== CUSTOMERS TABLE =====
