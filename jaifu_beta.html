@@ -460,7 +460,28 @@ function fmt(n){return n?Number(n).toLocaleString('th-TH',{maximumFractionDigits
 function fixY(s){if(!s)return '';return String(s).replace(/2512/g,'2569').replace(/2513/g,'2570')}
 function now(){return new Date().toLocaleString('th-TH')}
 function today(){var d=new Date(),m=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];return d.getDate()+' '+m[d.getMonth()]+' '+(d.getFullYear()+543)}
-function save(){localStorage.setItem('jf_beta_data',JSON.stringify(DATA))}
+function save(){
+  localStorage.setItem('jf_beta_data',JSON.stringify(DATA));
+  cloudSync();
+}
+var _syncTimer=null;
+function cloudSync(){
+  if(!API_URL)return;
+  var ss=$('syncStatus');if(ss){ss.textContent='🔄 Syncing...';ss.style.background='#FFF3E0';ss.style.color='var(--or)'}
+  clearTimeout(_syncTimer);
+  _syncTimer=setTimeout(function(){
+    fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({
+      action:'syncData',data:JSON.stringify(DATA),users:JSON.stringify(USERS),
+      tasks:JSON.stringify(TASKS),glog:JSON.stringify(G_LOG),by:CUR_USER?CUR_USER.name:'beta'
+    })}).then(function(r){return r.json()}).then(function(d){
+      var ss=$('syncStatus');
+      if(d.success){if(ss){ss.textContent='☁️ Synced';ss.style.background='#E8F5E9';ss.style.color='var(--gr)'}}
+      else{if(ss){ss.textContent='⚠️ Error';ss.style.background='#FFEBEE';ss.style.color='var(--r)'}}
+    }).catch(function(){
+      var ss=$('syncStatus');if(ss){ss.textContent='⚠️ Offline';ss.style.background='#FFEBEE';ss.style.color='var(--r)'}
+    });
+  },1500);
+}
 function log(r,action){if(!r.logs)r.logs=[];r.logs.unshift({d:now(),a:action,by:CUR_USER?CUR_USER.name:'?'});if(r.logs.length>50)r.logs=r.logs.slice(0,50)}
 
 // ===== LOGIN =====
@@ -562,7 +583,7 @@ function renderDash(){
   
   // Alert cards
   if(alerts.length){
-    $('D_alerts').innerHTML='<div class="alrt"><div class="alrt-h">🔔 แจ้งเตือน! ต้องทวงเงิน '+alerts.length+' รายการ ('+today()+')</div>'+
+    $('D_alerts').innerHTML='<div class="alrt"><div class="alrt-h" style="display:flex;justify-content:space-between;align-items:center">🔔 แจ้งเตือน! ต้องทวงเงิน '+alerts.length+' รายการ ('+today()+')<button class="btn btn-bl btn-sm" onclick="sendAllTelegram()" style="margin-left:auto">🤖 ส่งทั้งหมดทาง Telegram</button></div>'+
       alerts.map(function(a){
         return '<div class="alrt-r"><div><b>'+a.r.name+'</b> <span class="bg bg-g">'+a.r.id+'</span>'+
           '<div style="font-size:11px;color:var(--gy)">'+(a.r.product||'')+' | เหลือ '+a.remaining+' งวด'+(a.diff>3?' | <span style="color:var(--r)">ค่าปรับ ฿'+fmt(a.fee)+'</span>':'')+'</div></div>'+
@@ -1047,6 +1068,104 @@ function sendTelegram(i){
   }
   log(r,'🤖 ส่ง Telegram ทวงหนี้');save();
 }
+
+// ===== TELEGRAM DAILY SUMMARY =====
+function sendAllTelegram(){
+  if(!TG_TOKEN||!TG_CHAT){alert('⚠️ ใส่ Telegram Bot Token และ Chat ID ในตั้งค่าก่อน');return}
+  if(!API_URL){alert('⚠️ ใส่ API URL ก่อน');return}
+  
+  var todayISO=new Date().toISOString().slice(0,10);
+  var alerts=[];
+  
+  // Find all due/overdue customers
+  DATA.forEach(function(r,i){
+    if(!r.installments||!r.installments.length)return;
+    r.installments.forEach(function(ins){
+      if(ins.status==='paid')return;
+      var due=new Date(ins.dueDate),diff=Math.floor((new Date()-due)/864e5);
+      if(diff>=0){
+        var remaining=(r.totalTerms||0)-(r.paidTerms||0);
+        var fee=diff>3?Math.round(ins.amount*0.01*(diff-3)):0;
+        alerts.push({r:r,ins:ins,diff:diff,fee:fee,remaining:remaining,idx:i});
+      }
+    });
+  });
+  
+  if(!alerts.length){alert('✅ วันนี้ไม่มีรายการทวง!');return}
+  
+  // Check for duplicate names
+  var nameCount={};
+  alerts.forEach(function(a){nameCount[a.r.name]=(nameCount[a.r.name]||0)+1});
+  
+  // Build message
+  var msg='🔔 JAIFU แจ้งเตือนทวงหนี้ประจำวัน\n';
+  msg+='📅 '+today()+'\n';
+  msg+='━━━━━━━━━━━━━━━━\n\n';
+  msg+='📋 ลูกค้าต้องชำระ '+alerts.length+' ราย:\n\n';
+  
+  alerts.forEach(function(a,idx){
+    var displayName=a.r.name;
+    if(nameCount[displayName]>1){
+      displayName+=' ('+(a.r.id||a.r.phone||'')+')'
+    }
+    var paid=a.ins.paid||0;
+    var isPaid=a.ins.status==='paid';
+    var statusIcon=isPaid?'✅':'⬜';
+    
+    msg+=(idx+1)+'. '+statusIcon+' '+displayName+'\n';
+    msg+='   💰 ยอด ฿'+fmt(a.ins.amount);
+    if(paid>0&&!isPaid)msg+=' (จ่ายแล้ว ฿'+fmt(paid)+')';
+    msg+='\n';
+    if(a.diff>0)msg+='   ⏰ เลย '+a.diff+' วัน';
+    if(a.fee>0)msg+=' | ค่าปรับ ฿'+fmt(a.fee);
+    if(a.diff>0)msg+='\n';
+    msg+='   📦 '+(a.r.product||'-')+' | เหลือ '+a.remaining+' งวด\n\n';
+  });
+  
+  msg+='━━━━━━━━━━━━━━━━\n';
+  var totalAmt=0;alerts.forEach(function(a){totalAmt+=a.ins.amount});
+  msg+='💰 รวมยอดทวง: ฿'+fmt(totalAmt)+'\n';
+  msg+='👥 จำนวน: '+alerts.length+' ราย\n\n';
+  msg+='— JAIFU Solutions 💛';
+  
+  if(!confirm('ส่งแจ้งเตือน '+alerts.length+' ราย ไป Telegram?'))return;
+  
+  fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({
+    action:'telegramSend',token:TG_TOKEN,chatId:TG_CHAT,message:msg
+  })}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){
+      alert('✅ ส่ง Telegram เรียบร้อย! '+alerts.length+' ราย');
+      glog('🤖 ส่ง Telegram ทวงหนี้รวม '+alerts.length+' ราย');
+    }else{alert('❌ '+d.error)}
+  }).catch(function(){alert('❌ ส่งไม่ได้')});
+}
+
+// Auto check: send Telegram reminder on page load if there are due items
+function autoTelegramReminder(){
+  if(!TG_TOKEN||!TG_CHAT||!API_URL)return;
+  var lastSent=localStorage.getItem('jf_beta_tg_lastSent')||'';
+  var todayStr=new Date().toISOString().slice(0,10);
+  if(lastSent===todayStr)return; // Already sent today
+  
+  var hasDue=false;
+  DATA.forEach(function(r){
+    if(!r.installments)return;
+    r.installments.forEach(function(ins){
+      if(ins.status!=='paid'&&new Date(ins.dueDate)<=new Date())hasDue=true;
+    });
+  });
+  
+  if(hasDue){
+    // Auto-send after 3 seconds
+    setTimeout(function(){
+      if(confirm('🤖 วันนี้มีลูกค้าต้องชำระ! ส่งแจ้งเตือน Telegram อัตโนมัติ?')){
+        sendAllTelegram();
+        localStorage.setItem('jf_beta_tg_lastSent',todayStr);
+      }
+    },3000);
+  }
+}
+setTimeout(autoTelegramReminder,5000);
 
 // ===== TAB WRAPPERS =====
 function profTabInfo(){profTab('info',document.querySelectorAll('.mtab')[0])}
