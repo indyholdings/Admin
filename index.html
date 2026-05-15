@@ -130,6 +130,7 @@ tr:hover td{background:rgba(201,171,86,.04)}
 <div><b style="font-size:15px">JAIFU Operations</b><small style="display:block;font-size:11px;color:var(--gy)" id="T_role"></small></div>
 </div>
 <div style="display:flex;align-items:center;gap:10px">
+<span id="syncStatus" style="font-size:10px;padding:3px 8px;border-radius:10px;background:#E8F5E9;color:var(--gr)">☁️ Synced</span>
 <span style="font-size:11px;color:var(--gy)" id="T_date"></span>
 <button class="btn btn-o btn-sm" onclick="doLogout()">🚪 ออก</button>
 </div>
@@ -438,7 +439,7 @@ var DEFAULT_USERS = [
   {user:'amppy', pass:'ampindylovely', role:'Owner', name:'Amppy'}
 ];
 var USERS = JSON.parse(localStorage.getItem('jf_users') || 'null') || DEFAULT_USERS.slice();
-function saveUsers(){localStorage.setItem('jf_users',JSON.stringify(USERS))}
+function saveUsers(){localStorage.setItem('jf_users',JSON.stringify(USERS));cloudSync()}
 var CUR_USER = null;
 var DATA = JSON.parse(localStorage.getItem('jf_data') || '[]');
 var TASKS = JSON.parse(localStorage.getItem('jf_tasks') || '[]');
@@ -456,7 +457,65 @@ function fmt(n){return n?Number(n).toLocaleString('th-TH',{maximumFractionDigits
 function fixY(s){if(!s)return '';return String(s).replace(/2512/g,'2569').replace(/2513/g,'2570')}
 function now(){return new Date().toLocaleString('th-TH')}
 function today(){var d=new Date(),m=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];return d.getDate()+' '+m[d.getMonth()]+' '+(d.getFullYear()+543)}
-function save(){localStorage.setItem('jf_data',JSON.stringify(DATA))}
+function save(){
+  localStorage.setItem('jf_data',JSON.stringify(DATA));
+  cloudSync();
+}
+function cloudLoad(){
+  if(!API_URL){renderAll();return}
+  var ss=$('syncStatus');if(ss){ss.textContent='⏳ Loading...';ss.style.background='#E3F2FD';ss.style.color='var(--bl)'}
+  fetch(API_URL+'?action=loadData').then(function(r){return r.json()}).then(function(d){
+    if(d.success){
+      try{
+        var cloudData=JSON.parse(d.data||'[]');
+        var cloudUsers=JSON.parse(d.users||'[]');
+        var cloudTasks=JSON.parse(d.tasks||'[]');
+        var cloudLog=JSON.parse(d.glog||'[]');
+        
+        // Use cloud data if it has more data than local
+        if(cloudData.length>=DATA.length&&cloudData.length>0){
+          DATA=cloudData;localStorage.setItem('jf_data',JSON.stringify(DATA));
+        }
+        if(cloudUsers.length>0){
+          // Merge: keep default owners + cloud employees
+          var owners=DEFAULT_USERS.slice();
+          cloudUsers.forEach(function(u){if(u.role!=='Owner'&&!owners.find(function(o){return o.user===u.user}))owners.push(u)});
+          USERS=owners;saveUsers();
+        }
+        if(cloudTasks.length>0){TASKS=cloudTasks;localStorage.setItem('jf_tasks',JSON.stringify(TASKS))}
+        if(cloudLog.length>0){G_LOG=cloudLog;localStorage.setItem('jf_glog',JSON.stringify(G_LOG))}
+      }catch(e){console.log('Parse error:',e)}
+    }
+    var ss=$('syncStatus');if(ss){ss.textContent='☁️ Synced';ss.style.background='#E8F5E9';ss.style.color='var(--gr)'}
+    renderAll();
+  }).catch(function(e){
+    console.log('Cloud load failed:',e);
+    var ss=$('syncStatus');if(ss){ss.textContent='📱 Local';ss.style.background='var(--cr)';ss.style.color='var(--gd)'}
+    renderAll();
+  });
+}
+var _syncTimer=null;
+function cloudSync(){
+  if(!API_URL)return;
+  var ss=$('syncStatus');if(ss){ss.textContent='🔄 Syncing...';ss.style.background='#FFF3E0';ss.style.color='var(--or)'}
+  clearTimeout(_syncTimer);
+  _syncTimer=setTimeout(function(){
+    fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({
+      action:'syncData',
+      data:JSON.stringify(DATA),
+      users:JSON.stringify(USERS),
+      tasks:JSON.stringify(TASKS),
+      glog:JSON.stringify(G_LOG),
+      by:CUR_USER?CUR_USER.name:'?'
+    })}).then(function(r){return r.json()}).then(function(d){
+      var ss=$('syncStatus');
+      if(d.success){if(ss){ss.textContent='☁️ Synced';ss.style.background='#E8F5E9';ss.style.color='var(--gr)'}}
+      else{if(ss){ss.textContent='⚠️ Sync Error';ss.style.background='#FFEBEE';ss.style.color='var(--r)'}}
+    }).catch(function(){
+      var ss=$('syncStatus');if(ss){ss.textContent='⚠️ Offline';ss.style.background='#FFEBEE';ss.style.color='var(--r)'}
+    });
+  },1500);
+}
 function log(r,action){if(!r.logs)r.logs=[];r.logs.unshift({d:now(),a:action,by:CUR_USER?CUR_USER.name:'?'});if(r.logs.length>50)r.logs=r.logs.slice(0,50)}
 
 // ===== LOGIN =====
@@ -1106,7 +1165,9 @@ doLogin = function(){
     CUR_USER=found;sessionStorage.setItem('jf_in',JSON.stringify(found));
     $('PG_LOGIN').style.display='none';$('PG_MAIN').style.display='block';
     $('T_role').textContent='👤 '+found.name+' — '+found.role;
-    updateDate();glog('🔑 เข้าสู่ระบบ');renderAll();
+    updateDate();glog('🔑 เข้าสู่ระบบ');
+    // Load from Google Sheets
+    cloudLoad();
   }else{$('L_err').style.display='block';$('L_err').textContent='❌ Username หรือ Password ไม่ถูกต้อง'}
 };
 
