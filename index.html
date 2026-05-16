@@ -1003,6 +1003,42 @@ function smartImport(rows,fname){
     var pm=parseFloat(r[m.pm])||0;
     if(!pm&&cost>0&&inst>0&&totalTerms>0)pm=(inst*totalTerms-cost)/totalTerms;
     
+    // Auto-generate installment schedule
+    var autoInsts=[];
+    if(totalTerms>0&&inst>0){
+      var startStr=fd(r[m.first])||new Date().toISOString().slice(0,10);
+      var startD;
+      // Parse Thai date or ISO date
+      var parts=String(startStr).split('/');
+      if(parts.length===3){
+        var dy=parseInt(parts[0]),mn=parseInt(parts[1])-1,yr=parseInt(parts[2]);
+        if(yr>2500)yr-=543;if(yr<100)yr+=2000;
+        startD=new Date(yr,mn,dy);
+      }else{startD=new Date(startStr)}
+      if(isNaN(startD.getTime()))startD=new Date();
+      
+      for(var j=1;j<=totalTerms;j++){
+        var due=new Date(startD);due.setDate(due.getDate()+cycle*j);
+        var instStatus='pending';
+        if(j<=paidTerms)instStatus='paid';
+        autoInsts.push({term:j,amount:inst,paid:instStatus==='paid'?inst:0,status:instStatus,dueDate:due.toISOString().slice(0,10),paidDate:instStatus==='paid'?'imported':null,lateFee:0,partials:[]});
+      }
+    }
+    
+    // Auto-calculate contract end date
+    var autoEnd=fd(r[m.end])||'';
+    if(!autoEnd&&totalTerms>0&&cycle>0){
+      var startForEnd;
+      var ps2=String(fd(r[m.first])||'').split('/');
+      if(ps2.length===3){var d2=parseInt(ps2[0]),m2=parseInt(ps2[1])-1,y2=parseInt(ps2[2]);if(y2>2500)y2-=543;if(y2<100)y2+=2000;startForEnd=new Date(y2,m2,d2)}
+      else startForEnd=new Date();
+      if(!isNaN(startForEnd.getTime())){
+        var endD=new Date(startForEnd);endD.setDate(endD.getDate()+cycle*totalTerms);
+        var ey=endD.getFullYear();if(ey<2500)ey+=543;
+        autoEnd=endD.getDate()+'/'+(endD.getMonth()+1)+'/'+ey;
+      }
+    }
+    
     buf.push({
       id:String(r[m.id]||''),
       name:String(r[m.name]||''),
@@ -1016,13 +1052,16 @@ function smartImport(rows,fname){
       currentTerm:agentVal,
       firstTransfer:fd(r[m.first]),
       startDate:fd(r[m.first]),
-      contractEnd:fd(r[m.end]),
+      contractEnd:autoEnd,
       profitMonth:pm,
       profit69:parseFloat(r[m.p69])||0,
       profit70:parseFloat(r[m.p70])||0,
       product:product,
       status:paidTerms>=totalTerms&&totalTerms>0?'completed':'active',
-      payments:[],installments:[],logs:[],memo:'',memoHistory:[],
+      payments:[],
+      installments:autoInsts,
+      logs:[{d:new Date().toLocaleString('th-TH'),a:'📥 Import จาก Excel ('+totalTerms+' งวดสร้างอัตโนมัติ)',by:'system'}],
+      memo:'',memoHistory:[],
       lateCount:0
     });
   }
@@ -1030,7 +1069,7 @@ function smartImport(rows,fname){
   $('F_preview').innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>🤖 AI พบ '+buf.length+' รายการจาก '+fname+'</b><div><button class="btn btn-gr btn-sm" onclick="confirmImport()">✅ Import</button> <button class="btn btn-o btn-sm" onclick="cancelImport()">❌ ยกเลิก</button></div></div>';
   window._importBuf=buf;
 }
-function confirmImport(){DATA=window._importBuf.slice();save();renderAll();$('F_preview').style.display='none';alert('✅ Import '+DATA.length+' รายการ!')}
+function confirmImport(){DATA=window._importBuf.slice();save();renderAll();$('F_preview').style.display='none';var withInst=DATA.filter(function(r){return r.installments&&r.installments.length>0}).length;alert('✅ Import '+DATA.length+' ราย!\n📋 สร้างงวดอัตโนมัติ: '+withInst+' ราย')}
 function cancelImport(){window._importBuf=[];$('F_preview').style.display='none'}
 
 // ===== EXPORT =====
