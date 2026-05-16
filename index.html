@@ -931,26 +931,42 @@ function smartImport(rows,fname){
   if(rows.length<2){alert('ไฟล์ว่าง');return}
   var h=rows[0].map(function(x){return String(x).trim().toLowerCase()});
   var m={};
+  var isFormat2=false; // Format 2: ชื่อ,ต้น,ดอก,วันคืน,วันโอนแรก,หมดสัญญา
   h.forEach(function(x,i){
     if(/รหัส|id|code/.test(x))m.id=i;
     if(/ชื่อ|name|เล่น/.test(x))m.name=i;
-    if(/ต้นทุน|ทุน|cost/.test(x))m.cost=i;
+    if(/ต้นทุน|ทุน|cost/.test(x)&&!/ดอก/.test(x))m.cost=i;
+    if(/ต้น$/.test(x.trim()))m.cost=i; // "ต้น" exactly
     if(/ยอดผ่อน|ผ่อน|installment/.test(x))m.inst=i;
+    if(/ดอก|interest/.test(x)){m.inst=i;isFormat2=true}
     if(/วันคืน|คืน|return/.test(x))m.ret=i;
     if(/ราย|จำนวน.*งวด|terms/.test(x))m.terms=i;
     if(/งวดที่|current/.test(x))m.currentTerm=i;
     if(/ตัว|นายหน้า|ตัวแทน|agent/.test(x))m.agent=i;
-    if(/โอนแร|โอน|first|transfer/.test(x))m.first=i;
+    if(/วันโอนแร|โอน|first|transfer/.test(x)){if(isFormat2)m.cycle=i;else m.first=i}
     if(/หมดสัญญา|สิ้นสุด|contract|end/.test(x))m.end=i;
     if(/กำไร.*เดือน|profit.*month/.test(x))m.pm=i;
     if(/กำไร.*(69|2569)|profit.*(69|2569)/.test(x))m.p69=i;
     if(/กำไร.*(70|2570)|profit.*(70|2570)/.test(x))m.p70=i;
     if(/สินค้า|product|item/.test(x))m.product=i;
+    if(/รายละ|detail|note|หมายเหตุ/.test(x))m.notes=i;
   });
-  // Fallback: map by position if not enough matches
-  if(Object.keys(m).length<5){m={id:0,name:1,cost:2,inst:3,ret:4,terms:5,currentTerm:6,agent:6,first:7,end:8,pm:9,p69:10,p70:11}}
-  // Auto-detect product column (usually last column with text)
+  // Fallback
+  if(Object.keys(m).length<4){
+    if(h.length<=7){isFormat2=true;m={name:0,cost:1,inst:2,ret:3,cycle:4,end:5,notes:6}}
+    else{m={id:0,name:1,cost:2,inst:3,ret:4,terms:5,currentTerm:6,agent:6,first:7,end:8,pm:9,p69:10,p70:11}}
+  }
   if(!m.product){for(var ci=h.length-1;ci>=12;ci--){if(rows[1]&&rows[1][ci]&&String(rows[1][ci]).length>3){m.product=ci;break}}}
+  
+  // Parse number from messy text (e.g. "900+1,080", "79500/3%/15ว", "12,000/10%")
+  function parseNum(v){
+    if(!v)return 0;var s=String(v);
+    // Handle "900+1,080" → eval sum
+    if(s.includes('+')){var parts=s.split('+');var sum=0;parts.forEach(function(p){sum+=parseFloat(p.replace(/[^0-9.-]/g,''))||0});return sum}
+    // Handle "2385/ย" or "79500/3%/15ว" → take first number
+    var match=s.match(/([0-9][0-9,.]*)/);
+    return match?parseFloat(match[1].replace(/,/g,''))||0:0;
+  }
   
   function fd(v){if(!v)return '';if(v instanceof Date){var y=v.getFullYear();if(y>=1960&&y<=1980)y+=600;else if(y<2500)y+=543;return v.getDate()+'/'+(v.getMonth()+1)+'/'+y}return String(v).replace(/2512/g,'2569').replace(/2513/g,'2570')}
   
@@ -980,28 +996,52 @@ function smartImport(rows,fname){
 
   var buf=[];
   for(var i=1;i<rows.length;i++){
-    var r=rows[i];if(!r[m.id]&&!r[m.name])continue;
+    var r=rows[i];
+    var nameVal=String(r[m.name]||'').trim();
+    if(!nameVal&&!(m.id!==undefined&&r[m.id]))continue;
+    if(!nameVal)continue;
     
-    var termsData=parseTerms(r[m.terms]);
-    var currentData=parseCurrent(r[m.currentTerm]||'');
+    var cost,inst,cycle=30,totalTerms=0,paidTerms=0,agentVal='',product='',notes='';
     
-    // Use currentTerm data to determine paid terms
-    var totalTerms=termsData.total||currentData.total||0;
-    var paidTerms=currentData.paid||0;
-    var cycle=termsData.cycle||30;
-    var agentVal=currentData.agent||String(r[m.agent]||'');
-    
-    // If currentTerm has a number like "300" or "1350", it might be agent commission
-    var ctVal=String(r[m.currentTerm]||'');
-    if(/^\d+$/.test(ctVal.trim())&&parseInt(ctVal)>10){
-      agentVal=ctVal;paidTerms=0;
+    if(isFormat2){
+      // Format 2: ชื่อ,ต้น,ดอก,วันคืน,วันโอนแรก(=cycle),หมดสัญญา
+      cost=parseNum(r[m.cost]);
+      inst=parseNum(r[m.inst]);
+      notes=String(r[m.notes]||'');
+      
+      // Parse cycle from "วันโอนแรก" column (15ว, 30ว, 10ง/30ว)
+      var cycleStr=String(r[m.cycle]||'');
+      var cycleMatch=cycleStr.match(/(\d+)\s*ง.*?(\d+)\s*ว/i);
+      if(cycleMatch){totalTerms=parseInt(cycleMatch[1]);cycle=parseInt(cycleMatch[2])}
+      else{var cMatch=cycleStr.match(/(\d+)\s*ว/i);if(cMatch)cycle=parseInt(cMatch[1])}
+      
+      // Extract interest rate from name or notes (e.g. "นุ๊กลินดา8%" → 8%)
+      var rateMatch=nameVal.match(/(\d+\.?\d*)%/)||notes.match(/(\d+\.?\d*)%/);
+      if(rateMatch)notes=(notes?notes+' | ':'')+'ดอก'+rateMatch[1]+'%';
+      
+      // Clean name (remove % info)
+      nameVal=nameVal.replace(/\d+\.?\d*%/g,'').trim();
+      product=notes;
+    }else{
+      // Format 1: Original Excel format
+      cost=parseFloat(r[m.cost])||0;
+      inst=parseFloat(r[m.inst])||0;
+      product=m.product!==undefined?String(r[m.product]||''):'';
+      
+      var termsData=parseTerms(r[m.terms]);
+      var currentData=parseCurrent(r[m.currentTerm]||'');
+      totalTerms=termsData.total||currentData.total||0;
+      paidTerms=currentData.paid||0;
+      cycle=termsData.cycle||30;
+      agentVal=currentData.agent||String(r[m.agent]||'');
+      
+      var ctVal=String(r[m.currentTerm]||'');
+      if(/^\d+$/.test(ctVal.trim())&&parseInt(ctVal)>10){agentVal=ctVal;paidTerms=0}
     }
     
-    var product=m.product!==undefined?String(r[m.product]||''):'';
-    var cost=parseFloat(r[m.cost])||0;
-    var inst=parseFloat(r[m.inst])||0;
     var pm=parseFloat(r[m.pm])||0;
     if(!pm&&cost>0&&inst>0&&totalTerms>0)pm=(inst*totalTerms-cost)/totalTerms;
+    if(!pm&&cost>0&&inst>0)pm=inst; // For lending: monthly interest = installment amount
     
     // Auto-generate installment schedule
     var autoInsts=[];
@@ -1040,7 +1080,7 @@ function smartImport(rows,fname){
     }
     
     buf.push({
-      id:String(r[m.id]||''),
+      id:m.id!==undefined&&r[m.id]?String(r[m.id]):('*'+String(i).padStart(3,'0')),
       name:String(r[m.name]||''),
       cost:cost,
       installment:inst,
