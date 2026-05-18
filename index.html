@@ -194,7 +194,8 @@ tr:hover td{background:rgba(201,171,86,.04)}
 <div class="fg"><label>ต้นทุน (฿) *</label><input id="A_cost" type="number" oninput="autoCalc()"></div>
 <div class="fg"><label>ยอดผ่อน/งวด (฿) *</label><input id="A_inst" type="number" oninput="autoCalc()"></div>
 <div class="fg"><label>จำนวนงวด *</label><input id="A_terms" type="number" oninput="autoCalc()"></div>
-<div class="fg"><label>รอบงวด</label><select id="A_cycle"><option value="30">30 วัน</option><option value="15">15 วัน</option><option value="7">7 วัน</option></select></div>
+<div class="fg"><label>รอบงวด</label><select id="A_cycle" onchange="document.getElementById('A_payDay_wrap').style.display=this.value==='monthly'?'block':'none'"><option value="monthly">ทุกเดือน (วันที่เดียวกัน)</option><option value="30">ทุก 30 วัน</option><option value="15">ทุก 15 วัน</option><option value="7">ทุก 7 วัน</option></select></div>
+<div class="fg" id="A_payDay_wrap"><label>💳 วันที่จ่ายทุกเดือน</label><input id="A_payDay" type="number" min="1" max="28" placeholder="เช่น 16 = จ่ายทุกวันที่ 16"></div>
 </div>
 <div id="A_calc" style="display:none;background:#E8F5E9;border-radius:8px;padding:12px;margin-bottom:10px"></div>
 <div class="row r4">
@@ -763,9 +764,23 @@ function addCustomer(){
   
   // Generate installments
   var installments=[];
-  for(var i=1;i<=terms;i++){
-    var due=new Date(startDate);due.setDate(due.getDate()+cycle*i);
-    installments.push({term:i,amount:inst,paid:0,status:'pending',dueDate:due.toISOString().slice(0,10),paidDate:null,lateFee:0,partials:[]});
+  var payType=$('A_cycle').value;
+  var payDay=parseInt($('A_payDay')?.value)||0;
+  var startD=new Date(startDate);
+  
+  if(payType==='monthly'){
+    // Fixed day of month
+    if(!payDay)payDay=startD.getDate(); // Use start date's day
+    for(var i=1;i<=terms;i++){
+      var due=new Date(startD.getFullYear(),startD.getMonth()+i,Math.min(payDay,28));
+      installments.push({term:i,amount:inst,paid:0,status:'pending',dueDate:due.toISOString().slice(0,10),paidDate:null,lateFee:0,partials:[]});
+    }
+  }else{
+    // Every X days
+    for(var i=1;i<=terms;i++){
+      var due=new Date(startDate);due.setDate(due.getDate()+cycle*i);
+      installments.push({term:i,amount:inst,paid:0,status:'pending',dueDate:due.toISOString().slice(0,10),paidDate:null,lateFee:0,partials:[]});
+    }
   }
   
   var r={id:$('A_id').value||'*'+String(DATA.length+1).padStart(3,'0'),name:name,phone:$('A_phone').value,
@@ -896,12 +911,41 @@ function renderInsts(r){
   }).join('');
 }
 function genInst(){
-  if(PI<0)return;var t=parseInt($('P_terms').value)||0,inst=parseFloat($('P_inst').value)||0,cyc=parseInt($('P_cycle').value)||30;
+  if(PI<0)return;var r=DATA[PI];
+  var t=parseInt($('P_terms').value)||0,inst=parseFloat($('P_inst').value)||0,cyc=parseInt($('P_cycle').value)||30;
   if(!t||!inst){alert('ใส่จำนวนงวดและยอดผ่อนก่อน');return}
-  if(!confirm('สร้าง '+t+' งวดใหม่ (ทุก '+cyc+' วัน)?'))return;
-  var r=DATA[PI];r.installments=[];var start=r.startDate||new Date().toISOString().slice(0,10);
-  for(var i=1;i<=t;i++){var due=new Date(start);due.setDate(due.getDate()+cyc*i);r.installments.push({term:i,amount:inst,paid:0,status:'pending',dueDate:due.toISOString().slice(0,10),paidDate:null,lateFee:0,partials:[]})}
-  r.totalTerms=t;r.paidTerms=0;r.cycle=cyc;log(r,'🔄 สร้างงวดใหม่ '+t+' งวด');save();renderInsts(r);renderProgress(r);alert('✅ สร้าง '+t+' งวดเรียบร้อย!');
+  
+  var start=r.startDate||new Date().toISOString().slice(0,10);
+  var startD;
+  var parts=String(start).split('/');
+  if(parts.length===3){var dy=parseInt(parts[0]),mn=parseInt(parts[1])-1,yr=parseInt(parts[2]);if(yr>2500)yr-=543;if(yr<100)yr+=2000;startD=new Date(yr,mn,dy)}
+  else{startD=new Date(start)}
+  if(isNaN(startD.getTime()))startD=new Date();
+  
+  var mode=prompt('เลือกรอบการจ่าย:\n1 = ทุกเดือน วันที่เดียวกัน (เช่น ทุกวันที่ 16)\n2 = ทุก '+cyc+' วัน','1');
+  if(!mode)return;
+  
+  r.installments=[];
+  if(mode==='1'){
+    var payDay=parseInt(prompt('จ่ายทุกวันที่เท่าไร? (1-28)',startD.getDate()))||startD.getDate();
+    if(payDay>28)payDay=28;
+    for(var i=1;i<=t;i++){
+      var due=new Date(startD.getFullYear(),startD.getMonth()+i,Math.min(payDay,28));
+      r.installments.push({term:i,amount:inst,paid:0,status:'pending',dueDate:due.toISOString().slice(0,10),paidDate:null,lateFee:0,partials:[]});
+    }
+    r.payType='monthly';r.payDay=payDay;
+    log(r,'🔄 สร้างงวดใหม่ '+t+' งวด (ทุกวันที่ '+payDay+')');
+  }else{
+    for(var i=1;i<=t;i++){
+      var due=new Date(startD);due.setDate(due.getDate()+cyc*i);
+      r.installments.push({term:i,amount:inst,paid:0,status:'pending',dueDate:due.toISOString().slice(0,10),paidDate:null,lateFee:0,partials:[]});
+    }
+    r.payType='cycle';
+    log(r,'🔄 สร้างงวดใหม่ '+t+' งวด (ทุก '+cyc+' วัน)');
+  }
+  r.totalTerms=t;r.paidTerms=0;r.cycle=cyc;
+  save();renderInsts(r);renderProgress(r);
+  alert('✅ สร้าง '+t+' งวดเรียบร้อย!');
 }
 function renderLogs(r){
   var el=$('P_history');if(!el)return;
@@ -1069,12 +1113,11 @@ function smartImport(rows,fname){
     if(!pm&&cost>0&&inst>0&&totalTerms>0)pm=(inst*totalTerms-cost)/totalTerms;
     if(!pm&&cost>0&&inst>0)pm=inst; // For lending: monthly interest = installment amount
     
-    // Auto-generate installment schedule
+    // Auto-generate installment schedule (fixed day of month)
     var autoInsts=[];
     if(totalTerms>0&&inst>0){
       var startStr=fd(r[m.first])||new Date().toISOString().slice(0,10);
       var startD;
-      // Parse Thai date or ISO date
       var parts=String(startStr).split('/');
       if(parts.length===3){
         var dy=parseInt(parts[0]),mn=parseInt(parts[1])-1,yr=parseInt(parts[2]);
@@ -1083,8 +1126,12 @@ function smartImport(rows,fname){
       }else{startD=new Date(startStr)}
       if(isNaN(startD.getTime()))startD=new Date();
       
+      var payDay=startD.getDate();
+      if(payDay>28)payDay=28;
+      
       for(var j=1;j<=totalTerms;j++){
-        var due=new Date(startD);due.setDate(due.getDate()+cycle*j);
+        // Fixed day of month: same day every month
+        var due=new Date(startD.getFullYear(),startD.getMonth()+j,Math.min(payDay,28));
         var instStatus='pending';
         if(j<=paidTerms)instStatus='paid';
         autoInsts.push({term:j,amount:inst,paid:instStatus==='paid'?inst:0,status:instStatus,dueDate:due.toISOString().slice(0,10),paidDate:instStatus==='paid'?'imported':null,lateFee:0,partials:[]});
@@ -1125,6 +1172,8 @@ function smartImport(rows,fname){
       product:product,
       status:paidTerms>=totalTerms&&totalTerms>0?'completed':'active',
       payments:[],
+      payType:'monthly',
+      payDay:autoInsts.length>0?new Date(autoInsts[0].dueDate).getDate():1,
       installments:autoInsts,
       logs:[{d:new Date().toLocaleString('th-TH'),a:'📥 Import จาก Excel ('+totalTerms+' งวดสร้างอัตโนมัติ)',by:'system'}],
       memo:'',memoHistory:[],
