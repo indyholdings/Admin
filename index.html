@@ -464,6 +464,136 @@ function glog(action){G_LOG.unshift({d:now(),by:CUR_USER?CUR_USER.name:'?',user:
 function $(id){return document.getElementById(id)}
 function fmt(n){return n?Number(n).toLocaleString('th-TH',{maximumFractionDigits:2}):'0'}
 function fixY(s){if(!s)return '';return String(s).replace(/2512/g,'2569').replace(/2513/g,'2570')}
+
+// Parse Thai date string → JavaScript Date object
+// Handles: 20/มี.ค/69, 20/มี.ค./69, 28/กพ/69, 10/มิย/70, 1 /ก.ย/69
+//          17/4/69, 29/1/2566, 2026-03-20, สิ้นสุด11/5/70, 1ธค66
+//          Excel serial number (e.g. 44388), Date objects
+function parseThaiDate(s){
+  if(!s)return null;
+  if(s instanceof Date){
+    // Fix Excel date offset (1900 vs 1970) if year < 1970
+    var y=s.getFullYear();
+    if(y>=1960&&y<=1980)return new Date(y+600-543,s.getMonth(),s.getDate());
+    return s;
+  }
+  s=String(s).trim();
+  if(!s||/^[ก-๙]*$/.test(s)&&s.length<4)return null; // Pure Thai text like "ชั่วคราว"
+  
+  // Skip non-date strings
+  if(/ชั่วคราว|หนี้|ยิม|รวมจ่าย|ค่าแชร์|ปิดบัญชี/.test(s))return null;
+  
+  // Thai month mapping — every possible variation
+  var TM={
+    // มกราคม (January)
+    'มกราคม':0,'มกรา':0,'ม.ค.':0,'ม.ค':0,'มค.':0,'มค':0,
+    // กุมภาพันธ์ (February)
+    'กุมภาพันธ์':1,'กุมภา':1,'ก.พ.':1,'ก.พ':1,'กพ.':1,'กพ':1,
+    // มีนาคม (March)
+    'มีนาคม':2,'มีนา':2,'มี.ค.':2,'มี.ค':2,'มีค.':2,'มีค':2,
+    // เมษายน (April)
+    'เมษายน':3,'เมษา':3,'เม.ย.':3,'เม.ย':3,'เมย.':3,'เมย':3,
+    // พฤษภาคม (May)
+    'พฤษภาคม':4,'พฤษภา':4,'พ.ค.':4,'พ.ค':4,'พค.':4,'พค':4,
+    // มิถุนายน (June)
+    'มิถุนายน':5,'มิถุนา':5,'มิ.ย.':5,'มิ.ย':5,'มิย.':5,'มิย':5,
+    // กรกฎาคม (July)
+    'กรกฎาคม':6,'กรกฎา':6,'ก.ค.':6,'ก.ค':6,'กค.':6,'กค':6,
+    // สิงหาคม (August)
+    'สิงหาคม':7,'สิงหา':7,'ส.ค.':7,'ส.ค':7,'สค.':7,'สค':7,
+    // กันยายน (September)
+    'กันยายน':8,'กันยา':8,'ก.ย.':8,'ก.ย':8,'กย.':8,'กย':8,
+    // ตุลาคม (October)
+    'ตุลาคม':9,'ตุลา':9,'ต.ค.':9,'ต.ค':9,'ตค.':9,'ตค':9,
+    // พฤศจิกายน (November)
+    'พฤศจิกายน':10,'พฤศจิกา':10,'พ.ย.':10,'พ.ย':10,'พย.':10,'พย':10,
+    // ธันวาคม (December)
+    'ธันวาคม':11,'ธันวา':11,'ธ.ค.':11,'ธ.ค':11,'ธค.':11,'ธค':11
+  };
+  
+  // Helper: find Thai month in string
+  function findThaiMonth(str){
+    str=str.trim();
+    // Try exact match first (longest keys first)
+    var keys=Object.keys(TM).sort(function(a,b){return b.length-a.length});
+    for(var i=0;i<keys.length;i++){
+      if(str===keys[i]||str.indexOf(keys[i])>=0)return TM[keys[i]];
+    }
+    return -1;
+  }
+  
+  // Helper: fix year
+  function fixYear(y){
+    if(y>2500)return y-543; // พ.ศ. เต็ม: 2569→2026
+    if(y>=200&&y<=2500)return y; // ค.ศ. เต็ม: 2026→2026
+    if(y<100)return y+1957; // 2 หลัก: 69→2026, 66→2023, 70→2027
+    return null;
+  }
+  
+  // Extract date from text with prefix like "สิ้นสุด11/5/70"
+  var cleaned=s.replace(/^[ก-๙a-zA-Z\s]+(?=\d)/,'').trim();
+  if(cleaned!==s&&cleaned.length>0)s=cleaned;
+  
+  // Remove extra spaces around separators: "1 /ก.ย/69" → "1/ก.ย/69"
+  s=s.replace(/\s*\/\s*/g,'/').replace(/\s*-\s*/g,'-');
+  
+  // Pattern 1: dd/[Thai month or number]/yy(yy) — with / or - separator
+  var m1=s.match(/^(\d{1,2})[\/\-]([^\/\-]+)[\/\-](\d{2,4})$/);
+  if(m1){
+    var day=parseInt(m1[1]);
+    var monPart=m1[2].trim();
+    var year=parseInt(m1[3]);
+    
+    // Try Thai month
+    var mon=findThaiMonth(monPart);
+    // Try numeric
+    if(mon<0)mon=parseInt(monPart)-1;
+    if(isNaN(mon)||mon<0||mon>11)return null;
+    
+    year=fixYear(year);
+    if(!year)return null;
+    if(day<1||day>31)return null;
+    
+    return new Date(year,mon,day);
+  }
+  
+  // Pattern 2: compact "1ธค66", "15มีค69" — no separator
+  var m2=s.match(/^(\d{1,2})([ก-๙]+)(\d{2,4})$/);
+  if(m2){
+    var day=parseInt(m2[1]);
+    var mon=findThaiMonth(m2[2]);
+    var year=fixYear(parseInt(m2[3]));
+    if(mon>=0&&year&&day>=1&&day<=31)return new Date(year,mon,day);
+  }
+  
+  // Pattern 3: ISO "2026-03-20" or "2569-03-20"
+  var m3=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if(m3){
+    var year=fixYear(parseInt(m3[1]));
+    var mon=parseInt(m3[2])-1;
+    var day=parseInt(m3[3]);
+    if(year&&mon>=0&&mon<=11&&day>=1&&day<=31)return new Date(year,mon,day);
+  }
+  
+  // Pattern 4: Excel serial number (e.g. 44388 → 2021-07-15)
+  if(/^\d{5}$/.test(s)){
+    var serial=parseInt(s);
+    if(serial>30000&&serial<60000){
+      var d=new Date((serial-25569)*86400000);
+      if(!isNaN(d.getTime()))return d;
+    }
+  }
+  
+  // Pattern 5: Date object from XLSX library (might be offset)
+  var d=new Date(s);
+  if(!isNaN(d.getTime())){
+    var y=d.getFullYear();
+    if(y>=1960&&y<=1980){d=new Date(y+600-543,d.getMonth(),d.getDate())}
+    return d;
+  }
+  
+  return null;
+}
 function now(){return new Date().toLocaleString('th-TH')}
 function today(){var d=new Date(),m=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];return d.getDate()+' '+m[d.getMonth()]+' '+(d.getFullYear()+543)}
 function save(){
@@ -960,11 +1090,8 @@ function genInst(){
   if(!t||!inst){alert('ใส่จำนวนงวดและยอดผ่อนก่อน');return}
   
   var start=r.startDate||new Date().toISOString().slice(0,10);
-  var startD;
-  var parts=String(start).split('/');
-  if(parts.length===3){var dy=parseInt(parts[0]),mn=parseInt(parts[1])-1,yr=parseInt(parts[2]);if(yr>2500)yr-=543;if(yr<100)yr+=2000;startD=new Date(yr,mn,dy)}
-  else{startD=new Date(start)}
-  if(isNaN(startD.getTime()))startD=new Date();
+  var startD=parseThaiDate(start);
+  if(!startD||isNaN(startD.getTime()))startD=new Date();
   
   var mode=prompt('เลือกรอบการจ่าย:\n1 = ทุกเดือน วันที่เดียวกัน (เช่น ทุกวันที่ 16)\n2 = ทุก '+cyc+' วัน','1');
   if(!mode)return;
@@ -1161,14 +1288,8 @@ function smartImport(rows,fname){
     var autoInsts=[];
     if(totalTerms>0&&inst>0){
       var startStr=fd(r[m.first])||new Date().toISOString().slice(0,10);
-      var startD;
-      var parts=String(startStr).split('/');
-      if(parts.length===3){
-        var dy=parseInt(parts[0]),mn=parseInt(parts[1])-1,yr=parseInt(parts[2]);
-        if(yr>2500)yr-=543;if(yr<100)yr+=2000;
-        startD=new Date(yr,mn,dy);
-      }else{startD=new Date(startStr)}
-      if(isNaN(startD.getTime()))startD=new Date();
+      var startD=parseThaiDate(startStr);
+      if(!startD||isNaN(startD.getTime()))startD=new Date();
       
       var payDay=startD.getDate();
       if(payDay>28)payDay=28;
@@ -1184,13 +1305,10 @@ function smartImport(rows,fname){
     
     // Auto-calculate contract end date
     var autoEnd=fd(r[m.end])||'';
-    if(!autoEnd&&totalTerms>0&&cycle>0){
-      var startForEnd;
-      var ps2=String(fd(r[m.first])||'').split('/');
-      if(ps2.length===3){var d2=parseInt(ps2[0]),m2=parseInt(ps2[1])-1,y2=parseInt(ps2[2]);if(y2>2500)y2-=543;if(y2<100)y2+=2000;startForEnd=new Date(y2,m2,d2)}
-      else startForEnd=new Date();
-      if(!isNaN(startForEnd.getTime())){
-        var endD=new Date(startForEnd);endD.setDate(endD.getDate()+cycle*totalTerms);
+    if(!autoEnd&&totalTerms>0){
+      var startForEnd=parseThaiDate(fd(r[m.first]));
+      if(startForEnd&&!isNaN(startForEnd.getTime())){
+        var endD=new Date(startForEnd.getFullYear(),startForEnd.getMonth()+totalTerms,startForEnd.getDate());
         var ey=endD.getFullYear();if(ey<2500)ey+=543;
         autoEnd=endD.getDate()+'/'+(endD.getMonth()+1)+'/'+ey;
       }
