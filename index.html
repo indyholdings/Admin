@@ -659,6 +659,50 @@ function renderDash(){
   }).join('');
 }
 
+// ===== ALERT ROW + DISMISS =====
+function alertRow(a,dismissed){
+  var isDismissed=dismissed.indexOf(a.r.id+'_'+a.ins.term)>=0;
+  var daysLabel=a.diff===0?'<span class="bg bg-or">วันนี้</span>':a.diff<=3?'<span class="bg bg-or">เลย '+a.diff+' วัน</span>':'<span class="bg bg-r">เลย '+a.diff+' วัน</span>';
+  return '<div class="alrt-r" style="'+(isDismissed?'opacity:.3;background:#f9f9f9':a.diff>3?'background:#FFF0F0':'')+'">'+
+    '<div style="flex:1">'+
+      '<div style="display:flex;align-items:center;gap:6px">'+
+        '<b style="font-size:14px">'+a.r.name+'</b> <span class="bg bg-g">'+a.r.id+'</span> '+daysLabel+
+      '</div>'+
+      '<div style="font-size:12px;color:var(--gy);margin-top:2px">'+
+        (a.r.product||'—')+' | เหลือ '+a.remaining+' งวด'+
+        (a.fee>0?' | <b style="color:var(--r)">ค่าปรับ ฿'+fmt(a.fee)+'</b>':'')+
+      '</div>'+
+    '</div>'+
+    '<div style="text-align:right;min-width:80px">'+
+      '<div style="font-size:18px;font-weight:800;color:'+(a.diff>3?'var(--r)':'var(--or)')+'">฿'+fmt(a.ins.amount)+'</div>'+
+    '</div>'+
+    '<div style="display:flex;gap:4px;width:100%;margin-top:6px;flex-wrap:wrap">'+
+      '<button class="btn btn-n btn-sm" onclick="openProfile('+a.i+')">👤 โปรไฟล์</button>'+
+      '<button class="btn btn-gr btn-sm" onclick="openProfile('+a.i+');profTabFin()">💳 จ่ายเงิน</button>'+
+      '<button class="btn btn-bl btn-sm" onclick="copyCollectMsg('+a.i+')">📋 Copy ทวง</button>'+
+      (LINE_TOKEN?'<button class="btn btn-gr btn-sm" onclick="sendLinePush('+a.i+')">📨 LINE</button>':'')+
+      '<button class="btn btn-o btn-sm" onclick="openMemo('+a.i+')">📝 MEMO</button>'+
+      (isDismissed?
+        '<button class="btn btn-o btn-sm" onclick="undismissAlert(&quot;'+a.r.id+'_'+a.ins.term+'&quot;)">↩️ คืน</button>':
+        '<button class="btn btn-o btn-sm" style="color:var(--gy)" onclick="dismissAlert(&quot;'+a.r.id+'_'+a.ins.term+'&quot;)">✕ ซ่อน</button>')+
+    '</div>'+
+  '</div>';
+}
+function dismissAlert(key){
+  var today2=new Date().toISOString().slice(0,10);
+  var d=JSON.parse(localStorage.getItem('jf_dismissed_'+today2)||'[]');
+  if(d.indexOf(key)<0)d.push(key);
+  localStorage.setItem('jf_dismissed_'+today2,JSON.stringify(d));
+  renderDash();
+}
+function undismissAlert(key){
+  var today2=new Date().toISOString().slice(0,10);
+  var d=JSON.parse(localStorage.getItem('jf_dismissed_'+today2)||'[]');
+  d=d.filter(function(x){return x!==key});
+  localStorage.setItem('jf_dismissed_'+today2,JSON.stringify(d));
+  renderDash();
+}
+
 // ===== COLLECTION MESSAGE =====
 function buildCollectMsg(i){
   var r=DATA[i];if(!r)return '';
