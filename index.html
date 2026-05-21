@@ -1284,51 +1284,59 @@ function smartImport(rows,fname){
     if(!pm&&cost>0&&inst>0&&totalTerms>0)pm=(inst*totalTerms-cost)/totalTerms;
     if(!pm&&cost>0&&inst>0)pm=inst; // For lending: monthly interest = installment amount
     
-    // Auto-generate installment schedule (fixed day of month)
+    // ===== CALCULATE DATES FIRST =====
+    // Try all possible date sources
+    var rawFirst=m.first!==undefined?r[m.first]:'';
+    var rawEnd=m.end!==undefined?r[m.end]:'';
+    var rawRet=m.ret!==undefined?r[m.ret]:'';
+    
+    // Parse each date (try raw value first, then fd() converted)
+    var dateFirst=parseThaiDate(rawFirst)||parseThaiDate(fd(rawFirst));
+    var dateEnd=parseThaiDate(rawEnd)||parseThaiDate(fd(rawEnd));
+    var dateRet=parseThaiDate(rawRet)||parseThaiDate(fd(rawRet));
+    
+    // Determine startDate with fallback chain
+    var startD=null;
+    if(dateFirst&&!isNaN(dateFirst.getTime())){
+      startD=dateFirst;
+    }else if(dateEnd&&!isNaN(dateEnd.getTime())&&totalTerms>0){
+      // Calculate backwards: contractEnd - totalTerms months
+      startD=new Date(dateEnd.getFullYear(),dateEnd.getMonth()-totalTerms,dateEnd.getDate());
+    }else if(dateRet&&!isNaN(dateRet.getTime())){
+      startD=new Date(dateRet.getFullYear(),dateRet.getMonth()-1,dateRet.getDate());
+    }else{
+      startD=new Date();
+    }
+    
+    // Determine contractEnd
+    var autoEnd='';
+    if(dateEnd&&!isNaN(dateEnd.getTime())){
+      var ey=dateEnd.getFullYear();if(ey<2500)ey+=543;
+      autoEnd=dateEnd.getDate()+'/'+(dateEnd.getMonth()+1)+'/'+ey;
+    }else if(startD&&totalTerms>0){
+      var endCalc=new Date(startD.getFullYear(),startD.getMonth()+totalTerms,startD.getDate());
+      var ey2=endCalc.getFullYear();if(ey2<2500)ey2+=543;
+      autoEnd=endCalc.getDate()+'/'+(endCalc.getMonth()+1)+'/'+ey2;
+    }
+    
+    // Format startDate for storage
+    var startDateStr='';
+    if(startD&&!isNaN(startD.getTime())){
+      var sy=startD.getFullYear();if(sy<2500)sy+=543;
+      startDateStr=startD.getDate()+'/'+(startD.getMonth()+1)+'/'+sy;
+    }
+    
+    // ===== GENERATE INSTALLMENTS =====
     var autoInsts=[];
-    if(totalTerms>0&&inst>0){
-      var startStr=fd(r[m.first])||'';
-      var startD=parseThaiDate(startStr);
-      
-      // Fallback 1: calculate from contractEnd - totalTerms
-      if(!startD||isNaN(startD.getTime())){
-        var endStr=fd(r[m.end])||'';
-        var endD=parseThaiDate(endStr);
-        if(endD&&!isNaN(endD.getTime())){
-          startD=new Date(endD.getFullYear(),endD.getMonth()-totalTerms,endD.getDate());
-        }
-      }
-      // Fallback 2: use returnDate
-      if(!startD||isNaN(startD.getTime())){
-        var retStr=fd(r[m.ret])||'';
-        var retD=parseThaiDate(retStr);
-        if(retD&&!isNaN(retD.getTime())){
-          startD=new Date(retD.getFullYear(),retD.getMonth()-1,retD.getDate());
-        }
-      }
-      // Fallback 3: today
-      if(!startD||isNaN(startD.getTime()))startD=new Date();
-      
+    if(totalTerms>0&&inst>0&&startD){
       var payDay=startD.getDate();
       if(payDay>28)payDay=28;
       
       for(var j=1;j<=totalTerms;j++){
-        // Fixed day of month: same day every month
         var due=new Date(startD.getFullYear(),startD.getMonth()+j,Math.min(payDay,28));
         var instStatus='pending';
         if(j<=paidTerms)instStatus='paid';
         autoInsts.push({term:j,amount:inst,paid:instStatus==='paid'?inst:0,status:instStatus,dueDate:due.toISOString().slice(0,10),paidDate:instStatus==='paid'?'imported':null,lateFee:0,partials:[]});
-      }
-    }
-    
-    // Auto-calculate contract end date
-    var autoEnd=fd(r[m.end])||'';
-    if(!autoEnd&&totalTerms>0){
-      var startForEnd=parseThaiDate(fd(r[m.first]));
-      if(startForEnd&&!isNaN(startForEnd.getTime())){
-        var endD=new Date(startForEnd.getFullYear(),startForEnd.getMonth()+totalTerms,startForEnd.getDate());
-        var ey=endD.getFullYear();if(ey<2500)ey+=543;
-        autoEnd=endD.getDate()+'/'+(endD.getMonth()+1)+'/'+ey;
       }
     }
     
@@ -1359,14 +1367,7 @@ function smartImport(rows,fname){
       memo:'',memoHistory:[],
       lateCount:0
     });
-    // Fix empty startDate with calculated value
-    var lastBuf=buf[buf.length-1];
-    if((!lastBuf.startDate||lastBuf.startDate==='')&&lastBuf.installments.length>0){
-      var firstDue=new Date(lastBuf.installments[0].dueDate);
-      var calcStart=new Date(firstDue.getFullYear(),firstDue.getMonth()-1,firstDue.getDate());
-      lastBuf.startDate=calcStart.getDate()+'/'+(calcStart.getMonth()+1)+'/'+(calcStart.getFullYear()+543);
-      lastBuf.firstTransfer=lastBuf.startDate;
-    }
+
   }
   $('F_preview').style.display='block';
   $('F_preview').innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>🤖 AI พบ '+buf.length+' รายการจาก '+fname+' ('+(isFormat2?'Format: เงินกู้/ขายฝาก':'Format: เช่าซื้อ')+')</b><div><button class="btn btn-gr btn-sm" onclick="confirmImport()">✅ Import</button> <button class="btn btn-o btn-sm" onclick="cancelImport()">❌ ยกเลิก</button></div></div>';
