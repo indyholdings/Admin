@@ -599,6 +599,7 @@ function parseThaiDate(s){
   return null;
 }
 function now(){return new Date().toLocaleString('th-TH')}
+function fmtDate(d){if(!d)return '';var dd=String(d.getDate()).padStart(2,'0');var mm=String(d.getMonth()+1).padStart(2,'0');return d.getFullYear()+'-'+mm+'-'+dd}
 function today(){var d=new Date(),m=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];return d.getDate()+' '+m[d.getMonth()]+' '+(d.getFullYear()+543)}
 function save(){
   localStorage.setItem('jf_data',JSON.stringify(DATA));
@@ -739,7 +740,7 @@ function renderDash(){
   DATA.forEach(function(r){tc+=r.cost||0;ti+=r.installment||0;tpm+=r.profitMonth||0;tp69+=r.profit69||0});
   
   // Alerts
-  var alerts=[],todayISO=new Date().toISOString().slice(0,10);
+  var alerts=[],todayISO=fmtDate(new Date());
   DATA.forEach(function(r,i){
     if(!r.installments)return;
     r.installments.forEach(function(ins){
@@ -823,14 +824,14 @@ function alertRow(a,dismissed){
   '</div>';
 }
 function dismissAlert(key){
-  var today2=new Date().toISOString().slice(0,10);
+  var today2=fmtDate(new Date());
   var d=JSON.parse(localStorage.getItem('jf_dismissed_'+today2)||'[]');
   if(d.indexOf(key)<0)d.push(key);
   localStorage.setItem('jf_dismissed_'+today2,JSON.stringify(d));
   renderDash();
 }
 function undismissAlert(key){
-  var today2=new Date().toISOString().slice(0,10);
+  var today2=fmtDate(new Date());
   var d=JSON.parse(localStorage.getItem('jf_dismissed_'+today2)||'[]');
   d=d.filter(function(x){return x!==key});
   localStorage.setItem('jf_dismissed_'+today2,JSON.stringify(d));
@@ -919,7 +920,7 @@ function renderCust(){
 }
 
 // ===== ADD CUSTOMER =====
-function showAddForm(){$('addForm').style.display='block';$('A_id').value='*'+String(DATA.length+1).padStart(3,'0');$('A_start').value=new Date().toISOString().slice(0,10)}
+function showAddForm(){$('addForm').style.display='block';$('A_id').value='*'+String(DATA.length+1).padStart(3,'0');$('A_start').value=fmtDate(new Date())}
 function autoCalc(){
   var c=parseFloat($('A_cost').value)||0,inst=parseFloat($('A_inst').value)||0,t=parseInt($('A_terms').value)||0;
   if(c>0&&inst>0&&t>0){
@@ -938,7 +939,7 @@ function addCustomer(){
   var product=(ptype==='อื่นๆ'?$('A_pcustomVal').value:ptype)+' '+(pdetail||'');
   var extra=$('A_extra').value;if(extra)product+=', '+extra;
   var rev=inst*terms,profit=rev-cost,pm=profit/terms;
-  var startDate=$('A_start').value||new Date().toISOString().slice(0,10);
+  var startDate=$('A_start').value||fmtDate(new Date());
   
   // Generate installments
   var installments=[];
@@ -951,13 +952,13 @@ function addCustomer(){
     if(!payDay)payDay=startD.getDate(); // Use start date's day
     for(var i=1;i<=terms;i++){
       var due=new Date(startD.getFullYear(),startD.getMonth()+i,Math.min(payDay,28));
-      installments.push({term:i,amount:inst,paid:0,status:'pending',dueDate:due.toISOString().slice(0,10),paidDate:null,lateFee:0,partials:[]});
+      installments.push({term:i,amount:inst,paid:0,status:'pending',dueDate:fmtDate(due),paidDate:null,lateFee:0,partials:[]});
     }
   }else{
     // Every X days
     for(var i=1;i<=terms;i++){
       var due=new Date(startDate);due.setDate(due.getDate()+cycle*i);
-      installments.push({term:i,amount:inst,paid:0,status:'pending',dueDate:due.toISOString().slice(0,10),paidDate:null,lateFee:0,partials:[]});
+      installments.push({term:i,amount:inst,paid:0,status:'pending',dueDate:fmtDate(due),paidDate:null,lateFee:0,partials:[]});
     }
   }
   
@@ -1047,7 +1048,7 @@ function quickPay(){
     if(pending){
       pending.paid=(pending.paid||0)+amt;
       if(pending.paid>=pending.amount){
-        pending.status='paid';pending.paidDate=new Date().toISOString().slice(0,10);
+        pending.status='paid';pending.paidDate=fmtDate(new Date());
         r.paidTerms=(r.paidTerms||0)+1;
         var due=new Date(pending.dueDate),diff=Math.floor((new Date()-due)/864e5);
         if(diff>3){pending.lateFee=Math.round(pending.amount*0.01*(diff-3));r.lateCount=(r.lateCount||0)+1;
@@ -1093,7 +1094,7 @@ function genInst(){
   var t=parseInt($('P_terms').value)||0,inst=parseFloat($('P_inst').value)||0,cyc=parseInt($('P_cycle').value)||30;
   if(!t||!inst){alert('ใส่จำนวนงวดและยอดผ่อนก่อน');return}
   
-  var start=r.startDate||new Date().toISOString().slice(0,10);
+  var start=r.startDate||fmtDate(new Date());
   var startD=parseThaiDate(start);
   if(!startD||isNaN(startD.getTime()))startD=new Date();
   
@@ -1106,14 +1107,14 @@ function genInst(){
     if(payDay>28)payDay=28;
     for(var i=1;i<=t;i++){
       var due=new Date(startD.getFullYear(),startD.getMonth()+i,Math.min(payDay,28));
-      r.installments.push({term:i,amount:inst,paid:0,status:'pending',dueDate:due.toISOString().slice(0,10),paidDate:null,lateFee:0,partials:[]});
+      r.installments.push({term:i,amount:inst,paid:0,status:'pending',dueDate:fmtDate(due),paidDate:null,lateFee:0,partials:[]});
     }
     r.payType='monthly';r.payDay=payDay;
     log(r,'🔄 สร้างงวดใหม่ '+t+' งวด (ทุกวันที่ '+payDay+')');
   }else{
     for(var i=1;i<=t;i++){
       var due=new Date(startD);due.setDate(due.getDate()+cyc*i);
-      r.installments.push({term:i,amount:inst,paid:0,status:'pending',dueDate:due.toISOString().slice(0,10),paidDate:null,lateFee:0,partials:[]});
+      r.installments.push({term:i,amount:inst,paid:0,status:'pending',dueDate:fmtDate(due),paidDate:null,lateFee:0,partials:[]});
     }
     r.payType='cycle';
     log(r,'🔄 สร้างงวดใหม่ '+t+' งวด (ทุก '+cyc+' วัน)');
@@ -1340,7 +1341,7 @@ function smartImport(rows,fname){
         var due=new Date(startD.getFullYear(),startD.getMonth()+j,Math.min(payDay,28));
         var instStatus='pending';
         if(j<=paidTerms)instStatus='paid';
-        autoInsts.push({term:j,amount:inst,paid:instStatus==='paid'?inst:0,status:instStatus,dueDate:due.toISOString().slice(0,10),paidDate:instStatus==='paid'?'imported':null,lateFee:0,partials:[]});
+        autoInsts.push({term:j,amount:inst,paid:instStatus==='paid'?inst:0,status:instStatus,dueDate:fmtDate(due),paidDate:instStatus==='paid'?'imported':null,lateFee:0,partials:[]});
       }
     }
     
@@ -1471,7 +1472,7 @@ function smartFixAll(){
         var due=new Date(startD.getFullYear(),startD.getMonth()+j,Math.min(payDay,28));
         var instStatus='pending';
         if(j<=r.paidTerms)instStatus='paid';
-        r.installments.push({term:j,amount:r.installment,paid:instStatus==='paid'?r.installment:0,status:instStatus,dueDate:due.toISOString().slice(0,10),paidDate:instStatus==='paid'?'imported':null,lateFee:0,partials:[]});
+        r.installments.push({term:j,amount:r.installment,paid:instStatus==='paid'?r.installment:0,status:instStatus,dueDate:fmtDate(due),paidDate:instStatus==='paid'?'imported':null,lateFee:0,partials:[]});
       }
       r.payType='monthly';
       r.payDay=payDay;
@@ -1506,13 +1507,13 @@ function smartFixAll(){
 function exportXlsx(){
   if(!DATA.length){alert('ไม่มีข้อมูล');return}
   var ws=XLSX.utils.aoa_to_sheet([['รหัส','ชื่อ','ต้นทุน','ยอดผ่อน','งวด','เริ่มสัญญา','หมดสัญญา','กำไร/เดือน','กำไร2569','สินค้า','สถานะ']].concat(DATA.map(function(r){return[r.id,r.name,r.cost,r.installment,r.terms,r.startDate,r.contractEnd,r.profitMonth,r.profit69,r.product,r.status]})));
-  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'JAIFU');XLSX.writeFile(wb,'JAIFU_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'JAIFU');XLSX.writeFile(wb,'JAIFU_'+fmtDate(new Date())+'.xlsx');
 }
 function exportCsv(){
   if(!DATA.length){alert('ไม่มีข้อมูล');return}
   var csv='รหัส,ชื่อ,ต้นทุน,ยอดผ่อน,งวด,กำไร/เดือน,สินค้า\n';
   DATA.forEach(function(r){csv+='"'+r.id+'","'+r.name+'",'+r.cost+','+r.installment+',"'+r.terms+'",'+r.profitMonth+',"'+r.product+'"\n'});
-  var b=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='JAIFU_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+  var b=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='JAIFU_'+fmtDate(new Date())+'.csv';a.click();
 }
 function doPrint(){goTab('rpt',document.querySelectorAll('.tab')[4]);renderReport();setTimeout(function(){window.print()},500)}
 function renderReport(){
