@@ -739,20 +739,27 @@ function renderDash(){
   var tc=0,ti=0,tpm=0,tp69=0;
   DATA.forEach(function(r){tc+=r.cost||0;ti+=r.installment||0;tpm+=r.profitMonth||0;tp69+=r.profit69||0});
   
-  // Alerts
-  var alerts=[],todayISO=fmtDate(new Date());
+  // Alerts — GROUP BY customer (not per installment)
+  var alertsRaw=[],todayISO=fmtDate(new Date());
   DATA.forEach(function(r,i){
     if(!r.installments)return;
+    var custAlerts=[];
     r.installments.forEach(function(ins){
       if(ins.status==='paid')return;
       var due=new Date(ins.dueDate),diff=Math.floor((new Date()-due)/(864e5));
-      var remaining=(r.totalTerms||0)-(r.paidTerms||0);
       if(diff>=0){
         var fee=diff>3?Math.round(ins.amount*0.01*(diff-3)):0;
-        alerts.push({i:i,r:r,ins:ins,diff:diff,fee:fee,remaining:remaining});
+        custAlerts.push({ins:ins,diff:diff,fee:fee,term:ins.term});
       }
-    })
+    });
+    if(custAlerts.length>0){
+      var remaining=(r.totalTerms||0)-(r.paidTerms||0);
+      var totalAmt=0,totalFee=0,maxDiff=0;
+      custAlerts.forEach(function(a){totalAmt+=a.ins.amount;totalFee+=a.fee;if(a.diff>maxDiff)maxDiff=a.diff});
+      alertsRaw.push({i:i,r:r,overdueCount:custAlerts.length,totalAmt:totalAmt,totalFee:totalFee,maxDiff:maxDiff,remaining:remaining,details:custAlerts});
+    }
   });
+  var alerts=alertsRaw;
   
   $('D_stats').innerHTML=
     '<div class="st"><div class="lb">ลูกค้าทั้งหมด</div><div class="vl">'+DATA.length+'</div></div>'+
