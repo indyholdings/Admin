@@ -230,6 +230,10 @@ tr:hover td{background:rgba(201,171,86,.04)}
 </div>
 <div id="F_preview" style="display:none;margin-top:14px"></div>
 </div></div>
+<div class="cd"><div class="cd-h"><h3>🔧 Smart Fix</h3></div><div class="cd-b">
+<div style="font-size:12px;color:var(--gy);margin-bottom:8px">แก้ไขข้อมูลอัตโนมัติ: วันที่ว่าง, งวดผิด, กำไรไม่คำนวณ, สถานะไม่อัปเดต</div>
+<button class="btn btn-g" onclick="var f=smartFixAll();save();renderAll();alert('🔧 Smart Fix เสร็จ!\nแก้ไข '+f+' รายการ')">🔧 Run Smart Fix</button>
+</div></div>
 <div class="cd"><div class="cd-h"><h3>📤 Export</h3></div><div class="cd-b" style="display:flex;gap:8px;flex-wrap:wrap">
 <button class="btn btn-g" onclick="requirePin('Export ข้อมูลลูกค้า',exportXlsx)">📊 Export Excel</button>
 <button class="btn btn-bl" onclick="requirePin('Export ข้อมูลลูกค้า',exportCsv)">📄 Export CSV</button>
@@ -1373,8 +1377,130 @@ function smartImport(rows,fname){
   $('F_preview').innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>🤖 AI พบ '+buf.length+' รายการจาก '+fname+' ('+(isFormat2?'Format: เงินกู้/ขายฝาก':'Format: เช่าซื้อ')+')</b><div><button class="btn btn-gr btn-sm" onclick="confirmImport()">✅ Import</button> <button class="btn btn-o btn-sm" onclick="cancelImport()">❌ ยกเลิก</button></div></div>';
   window._importBuf=buf;
 }
-function confirmImport(){DATA=window._importBuf.slice();save();renderAll();$('F_preview').style.display='none';var withInst=DATA.filter(function(r){return r.installments&&r.installments.length>0}).length;alert('✅ Import '+DATA.length+' ราย!\n📋 สร้างงวดอัตโนมัติ: '+withInst+' ราย')}
+function confirmImport(){
+  DATA=window._importBuf.slice();
+  // Run Smart Fix after import
+  var fixes=smartFixAll();
+  save();renderAll();$('F_preview').style.display='none';
+  var withInst=DATA.filter(function(r){return r.installments&&r.installments.length>0}).length;
+  alert('✅ Import '+DATA.length+' ราย!\n📋 สร้างงวดอัตโนมัติ: '+withInst+' ราย\n🔧 Smart Fix: '+fixes+' รายการถูกแก้ไข');
+}
 function cancelImport(){window._importBuf=[];$('F_preview').style.display='none'}
+
+// ===== SMART FIX =====
+function smartFixAll(){
+  var fixed=0;
+  var today=new Date();
+  
+  DATA.forEach(function(r,idx){
+    // ===== FIX 1: Parse all date fields properly =====
+    var dates={};
+    ['startDate','firstTransfer','contractEnd','returnDate'].forEach(function(field){
+      if(r[field]){
+        var d=parseThaiDate(r[field]);
+        if(d&&!isNaN(d.getTime()))dates[field]=d;
+      }
+    });
+    
+    // ===== FIX 2: Parse totalTerms from terms string =====
+    if(!r.totalTerms||r.totalTerms===0){
+      var ts=String(r.terms||'');
+      var tm=ts.match(/(\d+)\s*[จง]/);
+      if(tm)r.totalTerms=parseInt(tm[1]);
+    }
+    
+    // ===== FIX 3: Find the best startDate =====
+    var startD=null;
+    
+    // Priority 1: from firstTransfer or startDate
+    if(dates.firstTransfer)startD=dates.firstTransfer;
+    else if(dates.startDate)startD=dates.startDate;
+    
+    // Priority 2: calculate from contractEnd - totalTerms
+    if(!startD&&dates.contractEnd&&r.totalTerms>0){
+      startD=new Date(dates.contractEnd.getFullYear(),dates.contractEnd.getMonth()-r.totalTerms,dates.contractEnd.getDate());
+      fixed++;
+    }
+    
+    // Priority 3: from returnDate (assume it's a near-future due date)
+    if(!startD&&dates.returnDate){
+      // returnDate is usually the NEXT due date, so start = returnDate - (paidTerms+1) months
+      var backMonths=(r.paidTerms||0)+1;
+      startD=new Date(dates.returnDate.getFullYear(),dates.returnDate.getMonth()-backMonths,dates.returnDate.getDate());
+      fixed++;
+    }
+    
+    // Priority 4: today
+    if(!startD)startD=today;
+    
+    // Save fixed startDate
+    if(startD&&!isNaN(startD.getTime())){
+      var sy=startD.getFullYear();if(sy<2500)sy+=543;
+      var fixedDate=startD.getDate()+'/'+(startD.getMonth()+1)+'/'+sy;
+      if(!r.startDate||r.startDate===''){r.startDate=fixedDate;r.firstTransfer=fixedDate;}
+    }
+    
+    // ===== FIX 4: Parse cycle from terms =====
+    if(!r.cycle||r.cycle===30){
+      var cs=String(r.terms||'');
+      var cm=cs.match(/(\d+)\s*[วw]/);
+      if(cm)r.cycle=parseInt(cm[1]);
+    }
+    
+    // ===== FIX 5: Regenerate installments if wrong =====
+    var needRegen=false;
+    
+    // No installments at all
+    if(!r.installments||r.installments.length===0)needRegen=true;
+    
+    // Installment count doesn't match totalTerms
+    if(r.installments&&r.totalTerms&&r.installments.length!==r.totalTerms)needRegen=true;
+    
+    // First installment is too far in future (should have overdue ones)
+    if(r.installments&&r.installments.length>0&&dates.contractEnd){
+      var firstDue=new Date(r.installments[0].dueDate);
+      var expectedFirst=new Date(startD.getFullYear(),startD.getMonth()+1,startD.getDate());
+      if(Math.abs(firstDue-expectedFirst)>60*86400000)needRegen=true; // More than 60 days off
+    }
+    
+    if(needRegen&&r.totalTerms>0&&r.installment>0&&startD){
+      var payDay=startD.getDate();
+      if(payDay>28)payDay=28;
+      r.installments=[];
+      for(var j=1;j<=r.totalTerms;j++){
+        var due=new Date(startD.getFullYear(),startD.getMonth()+j,Math.min(payDay,28));
+        var instStatus='pending';
+        if(j<=r.paidTerms)instStatus='paid';
+        r.installments.push({term:j,amount:r.installment,paid:instStatus==='paid'?r.installment:0,status:instStatus,dueDate:due.toISOString().slice(0,10),paidDate:instStatus==='paid'?'imported':null,lateFee:0,partials:[]});
+      }
+      r.payType='monthly';
+      r.payDay=payDay;
+      fixed++;
+    }
+    
+    // ===== FIX 6: Fix contractEnd if empty =====
+    if(!r.contractEnd&&r.installments&&r.installments.length>0){
+      var lastInst=r.installments[r.installments.length-1];
+      var lastD=new Date(lastInst.dueDate);
+      var ly=lastD.getFullYear();if(ly<2500)ly+=543;
+      r.contractEnd=lastD.getDate()+'/'+(lastD.getMonth()+1)+'/'+ly;
+      fixed++;
+    }
+    
+    // ===== FIX 7: Calculate profitMonth if 0 =====
+    if(!r.profitMonth&&r.cost>0&&r.installment>0&&r.totalTerms>0){
+      r.profitMonth=(r.installment*r.totalTerms-r.cost)/r.totalTerms;
+      fixed++;
+    }
+    
+    // ===== FIX 8: Auto-detect status =====
+    if(r.paidTerms>=r.totalTerms&&r.totalTerms>0){
+      r.status='completed';
+    }
+  });
+  
+  return fixed;
+}
 
 // ===== EXPORT =====
 function exportXlsx(){
