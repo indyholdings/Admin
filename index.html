@@ -755,7 +755,7 @@ function renderDash(){
     if(custAlerts.length>0){
       var remaining=(r.totalTerms||0)-(r.paidTerms||0);
       var totalAmt=0,totalFee=0,maxDiff=0;
-      custAlerts.forEach(function(a){totalAmt+=a.ins.amount;totalFee+=a.fee;if(a.diff>maxDiff)maxDiff=a.diff});
+      custAlerts.forEach(function(a){totalAmt+=(a.ins&&a.ins.amount?a.ins.amount:0);totalFee+=(a.fee||0);if(a.diff>maxDiff)maxDiff=a.diff});
       alertsRaw.push({i:i,r:r,overdueCount:custAlerts.length,totalAmt:totalAmt,totalFee:totalFee,maxDiff:maxDiff,remaining:remaining,details:custAlerts});
     }
   });
@@ -769,24 +769,7 @@ function renderDash(){
     '<div class="st"><div class="lb">กำไรปีนี้</div><div class="vl" style="color:var(--bl)">฿'+fmt(tp69)+'</div></div>'+
     '<div class="st"><div class="lb">⚠️ ต้องทวงวันนี้</div><div class="vl" style="color:var(--r)">'+alerts.length+' ราย</div></div>';
   
-  // Alert cards
-  if(alerts.length){
-    $('D_alerts').innerHTML='<div class="alrt"><div class="alrt-h">🔔 แจ้งเตือน! ต้องทวงเงิน '+alerts.length+' รายการ ('+today()+')</div>'+
-      alerts.map(function(a){
-        return '<div class="alrt-r"><div><b>'+a.r.name+'</b> <span class="bg bg-g">'+a.r.id+'</span>'+
-          '<div style="font-size:11px;color:var(--gy)">'+(a.r.product||'')+' | เหลือ '+a.remaining+' งวด'+(a.diff>3?' | <span style="color:var(--r)">ค่าปรับ ฿'+fmt(a.fee)+'</span>':'')+'</div></div>'+
-          '<div style="display:flex;gap:4px;flex-wrap:wrap">'+
-            '<div style="font-size:16px;font-weight:800;color:var(--r)">฿'+fmt(a.ins.amount)+'</div>'+
-          '</div>'+
-          '<div style="display:flex;gap:4px;width:100%">'+
-            '<button class="btn btn-n btn-sm" onclick="openProfile('+a.i+')">👤 โปรไฟล์</button>'+
-            '<button class="btn btn-gr btn-sm" onclick="openProfile('+a.i+');profTabFin()">💳 จัดการงวด</button>'+
-            '<button class="btn btn-bl btn-sm" onclick="copyCollectMsg('+a.i+')">📋 Copy ทวง</button>'+
-            (LINE_TOKEN?'<button class="btn btn-gr btn-sm" onclick="sendLinePush('+a.i+')">📨 LINE Push</button>':'')+
-            '<button class="btn btn-o btn-sm" onclick="openMemo('+a.i+')">📝 MEMO</button>'+
-          '</div></div>'
-      }).join('')+'</div>';
-  }else{$('D_alerts').innerHTML=''}
+
   
   // Chart
   var maxPM=Math.max.apply(null,DATA.map(function(r){return r.profitMonth||0}).concat([1]));
