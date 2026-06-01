@@ -130,6 +130,7 @@ tr:hover td{background:rgba(201,171,86,.04)}
 <div><b style="font-size:15px">JAIFU Operations</b><small style="display:block;font-size:11px;color:var(--gy)" id="T_role"></small></div>
 </div>
 <div style="display:flex;align-items:center;gap:10px">
+<button class="btn btn-o btn-sm" onclick="forceCloudLoad()" title="โหลดข้อมูลจาก Cloud">🔄</button>
 <span id="syncStatus" style="font-size:10px;padding:3px 8px;border-radius:10px;background:#E8F5E9;color:var(--gr)">☁️ Synced</span>
 <span style="font-size:11px;color:var(--gy)" id="T_date"></span>
 <button class="btn btn-o btn-sm" onclick="doLogout()">🚪 ออก</button>
@@ -607,8 +608,11 @@ function save(){
 }
 function cloudLoad(){
   if(!API_URL){renderAll();return}
-  var ss=$('syncStatus');if(ss){ss.textContent='⏳ Loading...';ss.style.background='#E3F2FD';ss.style.color='var(--bl)'}
-  fetch(API_URL+'?action=loadData').then(function(r){return r.json()}).then(function(d){
+  var ss=$('syncStatus');if(ss){ss.textContent='⏳ กำลังโหลด...';ss.style.background='#E3F2FD';ss.style.color='var(--bl)'}
+  fetch(API_URL+'?action=loadData',{method:'GET'}).then(function(r){
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    return r.json();
+  }).then(function(d){
     if(d.success){
       try{
         var cloudData=JSON.parse(d.data||'[]');
@@ -616,26 +620,54 @@ function cloudLoad(){
         var cloudTasks=JSON.parse(d.tasks||'[]');
         var cloudLog=JSON.parse(d.glog||'[]');
         
-        // Use cloud data if it has more data than local
-        if(cloudData.length>=DATA.length&&cloudData.length>0){
+        // Always use cloud data if it has data and local is empty or smaller
+        if(cloudData.length>0&&(DATA.length===0||cloudData.length>=DATA.length)){
           DATA=cloudData;localStorage.setItem('jf_data',JSON.stringify(DATA));
+          console.log('Cloud: loaded '+DATA.length+' customers');
         }
         if(cloudUsers.length>0){
-          // Merge: keep default owners + cloud employees
           var owners=DEFAULT_USERS.slice();
           cloudUsers.forEach(function(u){if(u.role!=='Owner'&&!owners.find(function(o){return o.user===u.user}))owners.push(u)});
           USERS=owners;saveUsers();
         }
         if(cloudTasks.length>0){TASKS=cloudTasks;localStorage.setItem('jf_tasks',JSON.stringify(TASKS))}
         if(cloudLog.length>0){G_LOG=cloudLog;localStorage.setItem('jf_glog',JSON.stringify(G_LOG))}
-      }catch(e){console.log('Parse error:',e)}
-    }
-    var ss=$('syncStatus');if(ss){ss.textContent='☁️ Synced';ss.style.background='#E8F5E9';ss.style.color='var(--gr)'}
+      }catch(e){console.log('Cloud parse error:',e)}
+    }else{console.log('Cloud load response:',d)}
+    var ss=$('syncStatus');
+    if(ss){ss.textContent='☁️ '+DATA.length+' ราย';ss.style.background='#E8F5E9';ss.style.color='var(--gr)'}
     renderAll();
   }).catch(function(e){
     console.log('Cloud load failed:',e);
-    var ss=$('syncStatus');if(ss){ss.textContent='📱 Local';ss.style.background='var(--cr)';ss.style.color='var(--gd)'}
+    var ss=$('syncStatus');if(ss){ss.textContent='⚠️ Offline';ss.style.background='#FFEBEE';ss.style.color='var(--r)'}
     renderAll();
+  });
+}
+function forceCloudLoad(){
+  if(!API_URL){alert('⚠️ ไม่มี API URL');return}
+  var ss=$('syncStatus');if(ss){ss.textContent='⏳ Loading...';ss.style.background='#E3F2FD';ss.style.color='var(--bl)'}
+  fetch(API_URL+'?action=loadData').then(function(r){return r.json()}).then(function(d){
+    if(d.success){
+      try{
+        var cd=JSON.parse(d.data||'[]');
+        if(cd.length>0){
+          DATA=cd;localStorage.setItem('jf_data',JSON.stringify(DATA));
+          var cu=JSON.parse(d.users||'[]');
+          if(cu.length>0){USERS=cu;saveUsers()}
+          var ct=JSON.parse(d.tasks||'[]');
+          if(ct.length>0){TASKS=ct;localStorage.setItem('jf_tasks',JSON.stringify(TASKS))}
+          renderAll();
+          if(ss){ss.textContent='☁️ '+DATA.length+' ราย';ss.style.background='#E8F5E9';ss.style.color='var(--gr)'}
+          alert('✅ โหลด '+DATA.length+' ลูกค้า จาก Cloud สำเร็จ!');
+        }else{
+          if(ss){ss.textContent='☁️ ว่าง';ss.style.background='#FFF3E0';ss.style.color='var(--or)'}
+          alert('⚠️ Cloud ยังไม่มีข้อมูล — Import Excel ใน Desktop ก่อน');
+        }
+      }catch(e){alert('❌ Parse error: '+e)}
+    }else{alert('❌ '+d.error)}
+  }).catch(function(e){
+    if(ss){ss.textContent='⚠️ Error';ss.style.background='#FFEBEE';ss.style.color='var(--r)'}
+    alert('❌ เชื่อมต่อ Cloud ไม่ได้: '+e);
   });
 }
 var _syncTimer=null;
