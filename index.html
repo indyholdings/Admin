@@ -215,7 +215,7 @@ tr:hover td{background:rgba(201,171,86,.04)}
 <!-- TABLE -->
 <div style="font-size:11px;color:var(--gy);margin-bottom:4px;padding:0 4px">💡 ดับเบิลคลิกที่ช่องในตารางเพื่อแก้ไขข้อมูลโดยตรง | Enter = บันทึก | Esc = ยกเลิก</div>
 <div class="tw"><table><thead><tr>
-<th>รหัส</th><th>ชื่อเล่น</th><th>ต้นทุน</th><th>ผ่อน/งวด</th><th>งวด</th><th>จ่ายแล้ว</th><th>เหลือ</th><th>เริ่มสัญญา</th><th>หมดสัญญา</th><th>กำไร/เดือน</th><th>สินค้า</th><th>สถานะ</th><th>จัดการ</th>
+<th>รหัส</th><th>ชื่อเล่น</th><th>ต้นทุน</th><th>ผ่อน/งวด</th><th>งวด</th><th>จ่ายแล้ว</th><th>เหลือ</th><th>ทวงถัดไป</th><th>กำไร/เดือน</th><th>สินค้า</th><th>สถานะ</th><th>จัดการ</th>
 </tr></thead><tbody id="C_tbody"></tbody></table></div>
 </div>
 </div>
@@ -929,6 +929,20 @@ function renderCust(){
     var hasOverdue=r.installments&&r.installments.some(function(ins){return ins.status!=='paid'&&new Date(ins.dueDate)<new Date()});
     var statusBg=hasOverdue?'bg-r':r.status==='completed'?'bg-gr':'bg-g';
     var statusTxt=hasOverdue?'⚠️ ค้าง':r.status==='completed'?'✅ ครบ':'Active';
+    // Find next due date
+    var nextDueText='-',nextDueColor='var(--gy)';
+    if(r.installments){
+      var nextInst=r.installments.find(function(ins){return ins.status!=='paid'});
+      if(nextInst){
+        var nd=new Date(nextInst.dueDate);
+        var diff=Math.floor((new Date()-nd)/(864e5));
+        var m=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+        nextDueText=nd.getDate()+' '+m[nd.getMonth()];
+        if(diff>0){nextDueText+=' (เลย '+diff+'วัน)';nextDueColor='var(--r)'}
+        else if(diff===0){nextDueText+=' (วันนี้!)';nextDueColor='var(--or)'}
+        else{nextDueText+=' (อีก '+Math.abs(diff)+'วัน)';nextDueColor='var(--gr)'}
+      }
+    }
     return '<tr style="'+(hasOverdue?'background:#FFF8F8':'')+'">'+
     '<td style="font-weight:600" ondblclick="editCell('+i+',"id",this)">'+r.id+'</td>'+
     '<td ondblclick="editCell('+i+',"name",this)" style="cursor:pointer" title="ดับเบิลคลิกเพื่อแก้ไข">'+r.name+'</td>'+
