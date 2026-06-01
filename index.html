@@ -372,9 +372,12 @@ tr:hover td{background:rgba(201,171,86,.04)}
 <div id="P_payments" style="max-height:180px;overflow-y:auto;border:1px solid var(--bd);border-radius:8px;margin-bottom:10px"></div>
 
 <!-- INSTALLMENTS -->
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-<div style="font-size:13px;font-weight:700">📋 รายละเอียดงวด</div>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:6px">
+<div style="font-size:13px;font-weight:700">📋 รายละเอียดงวด <span style="font-size:10px;color:var(--gy);font-weight:400">— คลิกงวดเพื่อเปลี่ยนสถานะ</span></div>
+<div style="display:flex;gap:4px">
+<button class="btn btn-bl btn-sm" onclick="quickSetPaid()">⚡ ตั้งค่างวดที่จ่ายแล้ว</button>
 <button class="btn btn-g btn-sm" onclick="genInst()">🔄 สร้างงวดใหม่</button>
+</div>
 </div>
 <div id="P_insts" style="max-height:250px;overflow-y:auto"></div>
 <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
@@ -1099,6 +1102,33 @@ function renderPayments(r){
     return '<div style="display:flex;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--bd);font-size:11px"><div><b>฿'+fmt(p.amount)+'</b> <span class="bg" style="background:'+col+'22;color:'+col+'">'+lbl+'</span>'+(p.slip?' 📎':'')+'<div style="color:var(--gy)">'+p.date+' | '+p.by+(p.note?' | '+p.note:'')+'</div></div></div>'
   }).join('');
 }
+function quickSetPaid(){
+  if(PI<0)return;var r=DATA[PI];
+  if(!r.installments||!r.installments.length){alert('ยังไม่มีงวด กดสร้างงวดก่อน');return}
+  var current=0;
+  r.installments.forEach(function(ins){if(ins.status==='paid')current++});
+  var n=prompt('จ่ายไปแล้วกี่งวด? (ปัจจุบัน: '+current+'/'+r.installments.length+')',current);
+  if(n===null)return;
+  n=parseInt(n);
+  if(isNaN(n)||n<0||n>r.installments.length){alert('ใส่ตัวเลข 0-'+r.installments.length);return}
+  
+  r.installments.forEach(function(ins,i){
+    if(i<n){
+      ins.status='paid';ins.paid=ins.amount;ins.paidDate=ins.paidDate||'จ่ายแล้ว';
+    }else{
+      ins.status='pending';ins.paid=0;ins.paidDate=null;
+    }
+  });
+  r.paidTerms=n;
+  
+  // Auto-update status
+  if(n>=r.installments.length)r.status='completed';
+  else r.status='active';
+  
+  log(r,'⚡ ตั้งค่าจ่ายแล้ว '+n+'/'+r.installments.length+' งวด โดย '+(CUR_USER?CUR_USER.name:''));
+  save();renderInsts(r);renderProgress(r);renderLogs(r);renderAll();
+  alert('✅ ตั้งค่า '+r.name+' จ่ายแล้ว '+n+' งวด!');
+}
 function toggleInstStatus(termIdx){
   if(PI<0)return;var r=DATA[PI];if(!r.installments||!r.installments[termIdx])return;
   var ins=r.installments[termIdx];
@@ -1319,7 +1349,7 @@ function smartImport(rows,fname){
       var termsData=parseTerms(r[m.terms]);
       var currentData=parseCurrent(r[m.currentTerm]||'');
       totalTerms=termsData.total||currentData.total||0;
-      paidTerms=currentData.paid||0;
+      paidTerms=0; // Don't auto-detect, admin sets manually
       cycle=termsData.cycle||30;
       agentVal=currentData.agent||String(r[m.agent]||'');
       
@@ -1381,9 +1411,7 @@ function smartImport(rows,fname){
       
       for(var j=1;j<=totalTerms;j++){
         var due=new Date(startD.getFullYear(),startD.getMonth()+j,Math.min(payDay,28));
-        var instStatus='pending';
-        if(j<=paidTerms)instStatus='paid';
-        autoInsts.push({term:j,amount:inst,paid:instStatus==='paid'?inst:0,status:instStatus,dueDate:fmtDate(due),paidDate:instStatus==='paid'?'imported':null,lateFee:0,partials:[]});
+        autoInsts.push({term:j,amount:inst,paid:0,status:'pending',dueDate:fmtDate(due),paidDate:null,lateFee:0,partials:[]});
       }
     }
     
@@ -1513,8 +1541,7 @@ function smartFixAll(){
       for(var j=1;j<=r.totalTerms;j++){
         var due=new Date(startD.getFullYear(),startD.getMonth()+j,Math.min(payDay,28));
         var instStatus='pending';
-        if(j<=r.paidTerms)instStatus='paid';
-        r.installments.push({term:j,amount:r.installment,paid:instStatus==='paid'?r.installment:0,status:instStatus,dueDate:fmtDate(due),paidDate:instStatus==='paid'?'imported':null,lateFee:0,partials:[]});
+        r.installments.push({term:j,amount:r.installment,paid:0,status:'pending',dueDate:fmtDate(due),paidDate:null,lateFee:0,partials:[]});
       }
       r.payType='monthly';
       r.payDay=payDay;
