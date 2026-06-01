@@ -445,7 +445,7 @@ tr:hover td{background:rgba(201,171,86,.04)}
 <!-- ============================================================ -->
 <script>
 // ===== CONFIG =====
-var API_URL = localStorage.getItem('jf_api') || 'https://script.google.com/macros/s/AKfycbzWNeqBgAT7XBPT7P6HUI_j3uuUafEFxxJao3wdrgiKM60N1CxLFhY-uOBC9Bkow03_kg/exec';
+var API_URL = localStorage.getItem('jf_api') || 'https://script.google.com/macros/s/AKfycbz3Y54YHV7jG8AFc3Eww2eJXGakVpAfeWxNF9upnhFQGJU3sgcdHgkUA56hW_SzBrz1RQ/exec';
 var LINE_TOKEN = localStorage.getItem('jf_line') || '';
 var DEFAULT_USERS = [
   {user:'krist.c', pass:'indyza456', role:'Owner', name:'Indy'},
@@ -1067,6 +1067,24 @@ function renderPayments(r){
     return '<div style="display:flex;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--bd);font-size:11px"><div><b>฿'+fmt(p.amount)+'</b> <span class="bg" style="background:'+col+'22;color:'+col+'">'+lbl+'</span>'+(p.slip?' 📎':'')+'<div style="color:var(--gy)">'+p.date+' | '+p.by+(p.note?' | '+p.note:'')+'</div></div></div>'
   }).join('');
 }
+function toggleInstStatus(termIdx){
+  if(PI<0)return;var r=DATA[PI];if(!r.installments||!r.installments[termIdx])return;
+  var ins=r.installments[termIdx];
+  if(ins.status==='paid'){
+    // Unpay: revert to pending
+    if(!confirm('ยกเลิกการชำระงวด '+ins.term+'?'))return;
+    ins.status='pending';ins.paid=0;ins.paidDate=null;
+    r.paidTerms=Math.max(0,(r.paidTerms||0)-1);
+    log(r,'↩️ ยกเลิกชำระงวด '+ins.term+' โดย '+(CUR_USER?CUR_USER.name:''));
+  }else{
+    // Pay: mark as paid
+    if(!confirm('ยืนยันชำระงวด '+ins.term+' ฿'+fmt(ins.amount)+'?'))return;
+    ins.status='paid';ins.paid=ins.amount;ins.paidDate=fmtDate(new Date());
+    r.paidTerms=(r.paidTerms||0)+1;
+    log(r,'✅ ชำระงวด '+ins.term+' ฿'+fmt(ins.amount)+' (ย้อนหลัง) โดย '+(CUR_USER?CUR_USER.name:''));
+  }
+  save();renderInsts(r);renderProgress(r);renderLogs(r);renderAll();
+}
 function renderInsts(r){
   var el=$('P_insts');if(!el)return;
   var insts=r.installments||[];
@@ -1078,7 +1096,7 @@ function renderInsts(r){
     var paidPct=ins.amount>0?Math.round((ins.paid||0)/ins.amount*100):0;
     var stBg=ins.status==='paid'?'bg-gr':ins.status==='partial'?'bg-or':isOver?'bg-r':'bg-g';
     var stTxt=ins.status==='paid'?'✅ ครบ':ins.status==='partial'?'จ่าย '+paidPct+'%':isOver?'⚠️ เลย '+diff+' วัน':'รอ';
-    return '<div style="display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid var(--bd);'+(isOver&&ins.status!=='paid'?'background:#FFF0F0':'')+'"><div style="width:30px;height:30px;border-radius:50%;background:'+(ins.status==='paid'?'var(--gr)':isOver?'var(--r)':'var(--bd)')+';color:var(--w);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">'+ins.term+'</div><div style="flex:1;font-size:11px"><div><b>งวด '+ins.term+'</b> ฿'+fmt(ins.amount)+' <span class="bg '+stBg+'">'+stTxt+'</span></div><div style="color:var(--gy)">กำหนด: '+ins.dueDate+(ins.paidDate?' | จ่าย: '+ins.paidDate:'')+'</div>'+((ins.paid||0)>0&&ins.paid<ins.amount?'<div style="color:var(--or)">จ่ายแล้ว ฿'+fmt(ins.paid)+'/฿'+fmt(ins.amount)+'</div>':'')+(fee>0?'<div style="color:var(--r);font-weight:600">ค่าปรับ 1%×'+(diff-3)+'วัน = ฿'+fmt(fee)+'</div>':'')+'</div></div>'
+    return '<div style="display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid var(--bd);cursor:pointer;'+(isOver&&ins.status!=='paid'?'background:#FFF0F0':'')+'" onclick="toggleInstStatus('+i+')" title="คลิกเพื่อเปลี่ยนสถานะ จ่าย/ยังไม่จ่าย"><div style="width:30px;height:30px;border-radius:50%;background:'+(ins.status==='paid'?'var(--gr)':isOver?'var(--r)':'var(--bd)')+';color:var(--w);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">'+(ins.status==='paid'?'✓':ins.term)+'</div><div style="flex:1;font-size:11px"><div><b>งวด '+ins.term+'</b> ฿'+fmt(ins.amount)+' <span class="bg '+stBg+'">'+stTxt+'</span></div><div style="color:var(--gy)">กำหนด: '+ins.dueDate+(ins.paidDate?' | จ่าย: '+ins.paidDate:'')+'</div>'+((ins.paid||0)>0&&ins.paid<ins.amount?'<div style="color:var(--or)">จ่ายแล้ว ฿'+fmt(ins.paid)+'/฿'+fmt(ins.amount)+'</div>':'')+(fee>0?'<div style="color:var(--r);font-weight:600">ค่าปรับ 1%×'+(diff-3)+'วัน = ฿'+fmt(fee)+'</div>':'')+'</div></div>'
   }).join('');
 }
 function genInst(){
