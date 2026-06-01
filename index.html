@@ -1301,14 +1301,18 @@ function smartImport(rows,fname){
   function fd(v){if(!v)return '';if(v instanceof Date){var y=v.getFullYear();if(y>=1960&&y<=1980)y+=600;else if(y<2500)y+=543;return v.getDate()+'/'+(v.getMonth()+1)+'/'+y}return String(v).replace(/2512/g,'2569').replace(/2513/g,'2570')}
   
   // Parse "5จ/30ว" → {total:5, cycle:30}
+  // "30ว" = cycle only, "10ง" = terms only
   function parseTerms(s){
     s=String(s||'');
+    // Pattern 1: Xง/Yว (terms + cycle)
     var match=s.match(/(\d+)\s*[จง].*?(\d+)\s*[วw]/i);
     if(match)return{total:parseInt(match[1]),cycle:parseInt(match[2])};
+    // Pattern 2: Xง (terms only)
     match=s.match(/(\d+)\s*[จง]/i);
     if(match)return{total:parseInt(match[1]),cycle:30};
-    match=s.match(/(\d+)/);
-    if(match)return{total:parseInt(match[1]),cycle:30};
+    // Pattern 3: Xว (cycle only — NOT totalTerms!)
+    match=s.match(/(\d+)\s*[วw]/i);
+    if(match)return{total:0,cycle:parseInt(match[1])};
     return{total:0,cycle:30};
   }
   
@@ -1435,7 +1439,7 @@ function smartImport(rows,fname){
       cost:cost,
       installment:inst,
       returnDate:fd(r[m.ret]),
-      terms:String(r[m.terms]||'')+' ('+totalTerms+'งวด/'+cycle+'วัน)',
+      terms:totalTerms>0?totalTerms+'งวด/'+cycle+'วัน':cycle+'วัน (ไม่จำกัดงวด)',
       totalTerms:totalTerms,
       paidTerms:paidTerms,
       cycle:cycle,
