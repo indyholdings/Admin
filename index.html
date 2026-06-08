@@ -101,6 +101,36 @@ tr:hover td{background:rgba(201,171,86,.04)}
 @media print{.top,.mq,.tabs,.btn,.search,.modal,.ai-btn,.ai-p,.no-print{display:none!important}.ct{padding:0}.sec{display:block!important}.cd{border:none;box-shadow:none}.tw{max-height:none;overflow:visible}.ph,.pf{display:block!important}}
 .ph,.pf{display:none}
 </style>
+<style id="mobileCards">
+@media (max-width:680px){
+  /* Turn customer table into stacked cards */
+  #S_cust table, #S_dash table, #S_cust thead, #S_dash thead, #S_cust tbody, #S_dash tbody, #S_cust th, #S_dash th, #S_cust td, #S_dash td, #S_cust tr, #S_dash tr{display:block}
+  #S_cust thead, #S_dash thead{display:none}
+  #S_cust tr, #S_dash tr{
+    background:var(--w);border:1px solid var(--bd);border-radius:12px;
+    margin:0 0 12px;padding:10px 12px;box-shadow:0 1px 3px rgba(0,0,0,.05)
+  }
+  #S_cust td, #S_dash td{
+    display:flex;justify-content:space-between;align-items:center;gap:10px;
+    text-align:right!important;padding:6px 0;border:none;
+    border-bottom:1px dashed var(--bd);font-size:13px
+  }
+  #S_cust td:last-child, #S_dash td:last-child{border-bottom:none}
+  #S_cust td::before, #S_dash td::before{
+    content:attr(data-label);font-weight:600;color:var(--gy);
+    text-align:left;flex-shrink:0;font-size:12px
+  }
+  /* Hide empty product/id cells gracefully */
+  #S_cust td:empty, #S_dash td:empty{display:none}
+  /* Action buttons full width */
+  #S_cust td[data-label="จัดการ"]{justify-content:flex-end;flex-wrap:wrap}
+  /* Tabs scroll nicer */
+  .tab{padding:10px 12px;font-size:12px}
+  /* Cards & headers spacing */
+  .cd{margin-bottom:10px}
+  table{font-size:12px}
+}
+</style>
 </head>
 <body>
 
@@ -112,7 +142,10 @@ tr:hover td{background:rgba(201,171,86,.04)}
 <div style="font-size:11px;color:var(--gy);margin-bottom:20px">อุ่นใจทุกครั้งเมื่อใช้บริการกับใจฟู 😊</div>
 <div class="fg"><label>👤 Username</label><input id="L_user" autocomplete="off"></div>
 <div class="fg"><label>🔑 Password</label><input type="password" id="L_pass" onkeypress="if(event.key==='Enter')doLogin()"></div>
-<button class="btn btn-n btn-full" onclick="doLogin()" style="margin-top:8px">เข้าสู่ระบบ</button>
+<div style="display:flex;align-items:center;gap:6px;margin:8px 0;font-size:12px">
+<input type="checkbox" id="L_remember" checked><label for="L_remember">จดจำการเข้าสู่ระบบ</label>
+</div>
+<button class="btn btn-n btn-full" onclick="doLogin()">เข้าสู่ระบบ</button>
 <div id="L_err" style="display:none;background:#FEF2F2;color:var(--r);padding:8px;border-radius:8px;font-size:12px;margin-top:10px">❌ Username หรือ Password ไม่ถูกต้อง</div>
 </div>
 </div>
@@ -145,6 +178,7 @@ tr:hover td{background:rgba(201,171,86,.04)}
 <div class="tab" onclick="goTab('imp',this)">📥 Import/Export</div>
 <div class="tab" onclick="goTab('task',this)">📋 งาน</div>
 <div class="tab" onclick="goTab('rpt',this)">🖨️ Report</div>
+<div class="tab" onclick="goTab('help',this)">📖 วิธีใช้งาน</div>
 <div class="tab" onclick="requirePin('ดูตั้งค่าระบบ — กรุณาใส่ PIN',function(){goTab('cfg',document.querySelectorAll('.tab')[5])})">⚙️ ตั้งค่า</div>
 </div>
 
@@ -159,6 +193,11 @@ tr:hover td{background:rgba(201,171,86,.04)}
 
 <!-- ========== DASHBOARD ========== -->
 <div class="sec on" id="S_dash">
+<div id="dashTip" style="display:flex;align-items:center;gap:10px;background:var(--cr);border:1px solid var(--gl);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px">
+  <span style="font-size:18px">💡</span>
+  <span style="flex:1;color:var(--gd)">มือใหม่? ดูคู่มือใช้งานได้ที่แท็บ <b>📖 วิธีใช้งาน</b></span>
+  <span onclick="document.getElementById('dashTip').style.display='none'" style="cursor:pointer;color:var(--gy);font-size:18px;line-height:1">×</span>
+</div>
 <div class="stats" id="D_stats"></div>
 <div id="D_alerts"></div>
 <div class="cd" id="profitCard">
@@ -253,6 +292,61 @@ tr:hover td{background:rgba(201,171,86,.04)}
 </div>
 
 <!-- ========== SETTINGS ========== -->
+
+<!-- ===== HOW TO USE ===== -->
+<div class="sec" id="S_help">
+  <div style="max-width:880px;margin:0 auto">
+
+    <div style="text-align:center;padding:24px 16px;background:linear-gradient(135deg,var(--n),var(--n2));border-radius:14px;margin-bottom:18px;color:var(--w)">
+      <div style="font-size:34px;margin-bottom:6px">📖</div>
+      <div style="font-size:20px;font-weight:700">วิธีการใช้งานระบบ JAIFU</div>
+      <div style="font-size:13px;color:var(--gl);margin-top:4px">คู่มือฉบับเข้าใจง่าย สำหรับทีมงานทุกคน</div>
+    </div>
+
+    <!-- Quick start -->
+    <div class="cd">
+      <div style="background:var(--cr);padding:12px 16px;border-bottom:1px solid var(--bd);font-weight:700;font-size:15px;color:var(--gd)">⚡ เริ่มต้นใช้งานใน 4 ขั้นตอน</div>
+      <div style="padding:16px;display:grid;gap:12px">
+        <div style="display:flex;gap:12px;align-items:flex-start"><div style="flex-shrink:0;width:30px;height:30px;border-radius:50%;background:var(--g);color:var(--w);display:flex;align-items:center;justify-content:center;font-weight:700">1</div><div><b style="font-size:14px">เข้าสู่ระบบ</b><br><span style="color:var(--gy);font-size:13px">ใส่ Username + Password แล้วติ๊ก "จดจำการเข้าสู่ระบบ" จะได้ไม่ต้องล็อกอินใหม่</span></div></div>
+        <div style="display:flex;gap:12px;align-items:flex-start"><div style="flex-shrink:0;width:30px;height:30px;border-radius:50%;background:var(--g);color:var(--w);display:flex;align-items:center;justify-content:center;font-weight:700">2</div><div><b style="font-size:14px">นำเข้าข้อมูลจาก Excel</b><br><span style="color:var(--gy);font-size:13px">ไปที่ <b>📥 Import/Export</b> → ลากไฟล์ Excel มาวาง → กด Import (ระบบจะ Merge ให้ ไม่ลบประวัติเก่า)</span></div></div>
+        <div style="display:flex;gap:12px;align-items:flex-start"><div style="flex-shrink:0;width:30px;height:30px;border-radius:50%;background:var(--g);color:var(--w);display:flex;align-items:center;justify-content:center;font-weight:700">3</div><div><b style="font-size:14px">ดูรายการต้องทวงวันนี้</b><br><span style="color:var(--gy);font-size:13px">หน้า <b>📊 Dashboard</b> จะรวมยอดทวงของวันนี้ + ค้างชำระไว้ให้อัตโนมัติ</span></div></div>
+        <div style="display:flex;gap:12px;align-items:flex-start"><div style="flex-shrink:0;width:30px;height:30px;border-radius:50%;background:var(--g);color:var(--w);display:flex;align-items:center;justify-content:center;font-weight:700">4</div><div><b style="font-size:14px">บันทึกการจ่ายเงิน</b><br><span style="color:var(--gy);font-size:13px">เปิดโปรไฟล์ลูกค้า → แท็บ <b>💰 การเงิน</b> → คลิกที่งวดเพื่อเปลี่ยนเป็น "จ่ายแล้ว"</span></div></div>
+      </div>
+    </div>
+
+    <!-- Feature cards grid -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:14px">
+
+      <div class="cd" style="margin:0"><div style="padding:14px"><div style="font-size:24px">📊</div><b style="font-size:14px">Dashboard</b><div style="color:var(--gy);font-size:13px;margin-top:4px;line-height:1.6">รวมยอดต้องทวงวันนี้ + ค้างชำระ จัดกลุ่มเป็นรายลูกค้า กดปุ่ม <b>✕ ซ่อน</b> เพื่อพักรายการที่ทวงแล้ว (กลับมาพรุ่งนี้)</div></div></div>
+
+      <div class="cd" style="margin:0"><div style="padding:14px"><div style="font-size:24px">👥</div><b style="font-size:14px">จัดการลูกค้า</b><div style="color:var(--gy);font-size:13px;margin-top:4px;line-height:1.6"><b>ดับเบิลคลิก</b>ที่ช่องในตารางเพื่อแก้ไขทันที กด <b>👤</b> เปิดโปรไฟล์เต็ม ดูคอลัมน์ <b>ทวงถัดไป</b> เพื่อรู้ว่าใครครบกำหนดเมื่อไร</div></div></div>
+
+      <div class="cd" style="margin:0"><div style="padding:14px"><div style="font-size:24px">💰</div><b style="font-size:14px">บันทึก/แก้ไขการจ่าย</b><div style="color:var(--gy);font-size:13px;margin-top:4px;line-height:1.6">คลิกที่งวด = สลับ จ่าย/ยังไม่จ่าย ย้อนหลังได้ หรือกด <b>⚡ ตั้งค่างวดที่จ่ายแล้ว</b> เพื่อกำหนดหลายงวดพร้อมกัน</div></div></div>
+
+      <div class="cd" style="margin:0"><div style="padding:14px"><div style="font-size:24px">📥</div><b style="font-size:14px">Import / Export</b><div style="color:var(--gy);font-size:13px;margin-top:4px;line-height:1.6"><b>Smart Merge</b> — นำเข้า Excel ใหม่ได้ทุกวัน ระบบอัปเดตข้อมูล แต่ <b>ไม่ลบ</b>ประวัติการจ่ายที่บันทึกไว้</div></div></div>
+
+      <div class="cd" style="margin:0"><div style="padding:14px"><div style="font-size:24px">☁️</div><b style="font-size:14px">ใช้บนมือถือ</b><div style="color:var(--gy);font-size:13px;margin-top:4px;line-height:1.6">เปิดลิงก์เดิมบนมือถือ → ล็อกอิน → กดปุ่ม <b>🔄</b> มุมขวาบน เพื่อโหลดข้อมูลล่าสุดจาก Cloud</div></div></div>
+
+      <div class="cd" style="margin:0"><div style="padding:14px"><div style="font-size:24px">🔒</div><b style="font-size:14px">ความปลอดภัย (PIN)</b><div style="color:var(--gy);font-size:13px;margin-top:4px;line-height:1.6">บางเมนูต้องใส่ PIN เช่น ตั้งค่าระบบ และดูกำไร เพื่อกันพนักงานทั่วไปเห็นข้อมูลสำคัญ</div></div></div>
+
+    </div>
+
+    <!-- FAQ accordion -->
+    <div class="cd">
+      <div style="background:var(--cr);padding:12px 16px;border-bottom:1px solid var(--bd);font-weight:700;font-size:15px;color:var(--gd)">❓ คำถามที่พบบ่อย</div>
+      <div style="padding:8px 16px 16px">
+        <details style="padding:10px 0;border-bottom:1px solid var(--bd)"><summary style="cursor:pointer;font-weight:600;font-size:14px">Import Excel ใหม่ทุกวัน ข้อมูลเก่าหายไหม?</summary><div style="color:var(--gy);font-size:13px;margin-top:6px;line-height:1.6">ไม่หายครับ ระบบใช้ Smart Merge — อัปเดตเฉพาะข้อมูลลูกค้า แต่เก็บประวัติการจ่าย, MEMO, และบันทึกต่างๆ ไว้ทั้งหมด</div></details>
+        <details style="padding:10px 0;border-bottom:1px solid var(--bd)"><summary style="cursor:pointer;font-weight:600;font-size:14px">ลูกค้าจ่ายมาแล้วบางงวด ต้องทำยังไง?</summary><div style="color:var(--gy);font-size:13px;margin-top:6px;line-height:1.6">เปิดโปรไฟล์ → แท็บการเงิน → กด <b>⚡ ตั้งค่างวดที่จ่ายแล้ว</b> → ใส่จำนวนงวด เช่น 3 → ระบบจะ mark งวด 1-3 เป็นจ่ายแล้วทันที</div></details>
+        <details style="padding:10px 0;border-bottom:1px solid var(--bd)"><summary style="cursor:pointer;font-weight:600;font-size:14px">เปิดบนมือถือแล้วไม่เห็นข้อมูล?</summary><div style="color:var(--gy);font-size:13px;margin-top:6px;line-height:1.6">กดปุ่ม <b>🔄</b> มุมขวาบนเพื่อโหลดจาก Cloud มือถือเป็นคนละเครื่องกับคอม ต้องดึงข้อมูลจาก Cloud ก่อน</div></details>
+        <details style="padding:10px 0"><summary style="cursor:pointer;font-weight:600;font-size:14px">แก้ไขการจ่ายย้อนหลังได้ไหม?</summary><div style="color:var(--gy);font-size:13px;margin-top:6px;line-height:1.6">ได้ครับ คลิกที่งวดใดก็ได้เพื่อสลับสถานะ จ่าย/ยังไม่จ่าย ระบบบันทึกไว้ว่าใครแก้ เมื่อไร</div></details>
+      </div>
+    </div>
+
+    <div style="text-align:center;padding:16px;color:var(--gy);font-size:12px">มีปัญหาการใช้งาน? ติดต่อทีม IT — JAIFU Solutions 💛</div>
+
+  </div>
+</div>
+
 <div class="sec" id="S_cfg">
 
 <!-- User Management (Owner Only) -->
@@ -704,7 +798,7 @@ function doLogin(){
   if(found){CUR_USER=found;sessionStorage.setItem('jf_in',JSON.stringify(found));$('PG_LOGIN').style.display='none';$('PG_MAIN').style.display='block';$('T_role').textContent='👤 '+found.name+' — '+found.role;updateDate();renderAll();}
   else{$('L_err').style.display='block'}
 }
-function doLogout(){sessionStorage.removeItem('jf_in');location.reload()}
+function doLogout(){sessionStorage.removeItem('jf_in');localStorage.removeItem('jf_remember');location.reload()}
 function changePass(){
   var o=$('CFG_oldp').value,n=$('CFG_newp').value;
   if(!CUR_USER)return;
@@ -713,8 +807,8 @@ function changePass(){
   if(n.length<4){alert('❌ รหัสใหม่ต้อง 4+ ตัว');return}
   u.pass=n;alert('✅ เปลี่ยนรหัสเรียบร้อย (session นี้)')
 }
-// Auto-login
-(function(){var s=sessionStorage.getItem('jf_in');if(s){try{CUR_USER=JSON.parse(s);$('PG_LOGIN').style.display='none';$('PG_MAIN').style.display='block';$('T_role').textContent='👤 '+CUR_USER.name+' — '+CUR_USER.role;updateDate();setTimeout(renderAll,100)}catch(e){}}})();
+// Auto-login (check localStorage first for "remember me", then sessionStorage)
+(function(){var s=localStorage.getItem('jf_remember')||sessionStorage.getItem('jf_in');if(s){try{CUR_USER=JSON.parse(s);$('PG_LOGIN').style.display='none';$('PG_MAIN').style.display='block';$('T_role').textContent='👤 '+CUR_USER.name+' — '+CUR_USER.role;updateDate();setTimeout(renderAll,100)}catch(e){}}})();
 
 // ===== NAVIGATION =====
 function goTab(id,el){
@@ -815,7 +909,7 @@ function renderDash(){
   
   // Summary table
   $('D_tbody').innerHTML=DATA.map(function(r){
-    return '<tr><td style="font-weight:600">'+r.id+'</td><td>'+r.name+'</td><td style="text-align:right">฿'+fmt(r.cost)+'</td><td style="text-align:right">฿'+fmt(r.installment)+'</td><td>'+(r.terms||'')+'</td><td>'+fixY(r.startDate||r.firstTransfer||'')+'</td><td>'+fixY(r.contractEnd||'')+'</td><td style="text-align:right;color:var(--gr);font-weight:600">฿'+fmt(r.profitMonth)+'</td><td style="text-align:right">฿'+fmt(r.profit69)+'</td><td style="font-size:11px">'+(r.product||'')+'</td></tr>'
+    return '<tr><td data-label="รหัส" style="font-weight:600">'+r.id+'</td><td data-label="ชื่อเล่น">'+r.name+'</td><td data-label="ต้นทุน" style="text-align:right">฿'+fmt(r.cost)+'</td><td data-label="ผ่อน/งวด" style="text-align:right">฿'+fmt(r.installment)+'</td><td data-label="งวด">'+(r.terms||'')+'</td><td data-label="เริ่มสัญญา">'+fixY(r.startDate||r.firstTransfer||'')+'</td><td data-label="หมดสัญญา">'+fixY(r.contractEnd||'')+'</td><td data-label="กำไร/เดือน" style="text-align:right;color:var(--gr);font-weight:600">฿'+fmt(r.profitMonth)+'</td><td data-label="กำไร 69" style="text-align:right">฿'+fmt(r.profit69)+'</td><td data-label="สินค้า" style="font-size:11px">'+(r.product||'')+'</td></tr>'
   }).join('');
 }
 
@@ -840,7 +934,7 @@ function alertRow(a,dismissed){
     '</div>'+
     '<div style="display:flex;gap:4px;width:100%;margin-top:6px;flex-wrap:wrap">'+
       '<button class="btn btn-n btn-sm" onclick="openProfile('+a.i+')">👤 โปรไฟล์</button>'+
-      '<button class="btn btn-gr btn-sm" onclick="openProfile('+a.i+');profTabFin()">💳 จ่ายเงิน</button>'+
+      '<button class="btn btn-gr btn-sm" onclick="openPayModal('+a.i+')">💰 บันทึกจ่าย</button>'+
       '<button class="btn btn-bl btn-sm" onclick="copyCollectMsg('+a.i+')">📋 Copy ทวง</button>'+
       (LINE_TOKEN?'<button class="btn btn-gr btn-sm" onclick="sendLinePush('+a.i+')">📨 LINE</button>':'')+
       '<button class="btn btn-o btn-sm" onclick="openMemo('+a.i+')">📝 MEMO</button>'+
@@ -944,19 +1038,19 @@ function renderCust(){
       }
     }
     return '<tr style="'+(hasOverdue?'background:#FFF8F8':'')+'">'+
-    '<td style="font-weight:600" ondblclick="editCell('+i+',"id",this)">'+r.id+'</td>'+
-    '<td ondblclick="editCell('+i+',"name",this)" style="cursor:pointer" title="ดับเบิลคลิกเพื่อแก้ไข">'+r.name+'</td>'+
-    '<td style="text-align:right;cursor:pointer" ondblclick="editCell('+i+',"cost",this)" title="ดับเบิลคลิก">฿'+fmt(r.cost)+'</td>'+
-    '<td style="text-align:right;cursor:pointer" ondblclick="editCell('+i+',"installment",this)" title="ดับเบิลคลิก">฿'+fmt(r.installment)+'</td>'+
-    '<td ondblclick="editCell('+i+',"terms",this)" style="cursor:pointer" title="ดับเบิลคลิก">'+(r.terms||total+'งวด')+'</td>'+
-    '<td style="text-align:center;color:var(--bl);font-weight:600;cursor:pointer" ondblclick="editCell('+i+',"paidTerms",this)" title="ดับเบิลคลิก">'+paid+'</td>'+
-    '<td style="text-align:center;font-weight:700;color:'+(remain<=2&&remain>0?'var(--or)':remain===0?'var(--gr)':'var(--r)')+'">'+remain+'</td>'+
-    '<td style="font-size:11px;cursor:pointer" ondblclick="editCell('+i+',"startDate",this)" title="ดับเบิลคลิก">'+fixY(r.startDate||r.firstTransfer||'')+'</td>'+
-    '<td style="font-size:11px;cursor:pointer" ondblclick="editCell('+i+',"contractEnd",this)" title="ดับเบิลคลิก">'+fixY(r.contractEnd||'')+'</td>'+
-    '<td style="text-align:right;color:var(--gr);font-weight:600;cursor:pointer" ondblclick="editCell('+i+',"profitMonth",this)" title="ดับเบิลคลิก">฿'+fmt(r.profitMonth)+'</td>'+
-    '<td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;cursor:pointer" title="'+(r.product||'')+' — ดับเบิลคลิกแก้ไข" ondblclick="editCell('+i+',"product",this)">'+(r.product||'—')+'</td>'+
-    '<td><span class="bg '+statusBg+'">'+statusTxt+'</span></td>'+
-    '<td style="white-space:nowrap"><button class="btn btn-n btn-sm" onclick="openProfile('+i+')">👤</button> <button class="btn btn-g btn-sm" onclick="openMemo('+i+')">📝</button></td></tr>'
+    '<td data-label="รหัส" style="font-weight:600" ondblclick="editCell('+i+',"id",this)">'+r.id+'</td>'+
+    '<td data-label="ชื่อเล่น" ondblclick="editCell('+i+',"name",this)" style="cursor:pointer" title="ดับเบิลคลิกเพื่อแก้ไข">'+r.name+'</td>'+
+    '<td data-label="ต้นทุน" style="text-align:right;cursor:pointer" ondblclick="editCell('+i+',"cost",this)" title="ดับเบิลคลิก">฿'+fmt(r.cost)+'</td>'+
+    '<td data-label="ผ่อน/งวด" style="text-align:right;cursor:pointer" ondblclick="editCell('+i+',"installment",this)" title="ดับเบิลคลิก">฿'+fmt(r.installment)+'</td>'+
+    '<td data-label="งวด" ondblclick="editCell('+i+',"terms",this)" style="cursor:pointer" title="ดับเบิลคลิก">'+(r.terms||total+'งวด')+'</td>'+
+    '<td data-label="จ่ายแล้ว" style="text-align:center;color:var(--bl);font-weight:600;cursor:pointer" ondblclick="editCell('+i+',"paidTerms",this)" title="ดับเบิลคลิก">'+paid+'</td>'+
+    '<td data-label="เหลือ" style="text-align:center;font-weight:700;color:'+(remain<=2&&remain>0?'var(--or)':remain===0?'var(--gr)':'var(--r)')+'">'+remain+'</td>'+
+    '<td data-label="ทวงถัดไป" style="font-size:11px;cursor:pointer" ondblclick="editCell('+i+',"startDate",this)" title="ดับเบิลคลิก">'+fixY(r.startDate||r.firstTransfer||'')+'</td>'+
+    '<td data-label="กำไร/เดือน" style="font-size:11px;cursor:pointer" ondblclick="editCell('+i+',"contractEnd",this)" title="ดับเบิลคลิก">'+fixY(r.contractEnd||'')+'</td>'+
+    '<td data-label="สินค้า" style="text-align:right;color:var(--gr);font-weight:600;cursor:pointer" ondblclick="editCell('+i+',"profitMonth",this)" title="ดับเบิลคลิก">฿'+fmt(r.profitMonth)+'</td>'+
+    '<td data-label="สถานะ" style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;cursor:pointer" title="'+(r.product||'')+' — ดับเบิลคลิกแก้ไข" ondblclick="editCell('+i+',"product",this)">'+(r.product||'—')+'</td>'+
+    '<td data-label="จัดการ"><span class="bg '+statusBg+'">'+statusTxt+'</span></td>'+
+    '<td data-label="จัดการ" style="white-space:nowrap"><button class="btn btn-gr btn-sm" onclick="openPayModal('+i+')" title="บันทึกจ่าย">💰</button> <button class="btn btn-n btn-sm" onclick="openProfile('+i+')">👤</button> <button class="btn btn-g btn-sm" onclick="openMemo('+i+')">📝</button></td></tr>'
   }).join('');
 }
 
@@ -1143,6 +1237,63 @@ function quickSetPaid(){
   save();renderInsts(r);renderProgress(r);renderLogs(r);renderAll();
   alert('✅ ตั้งค่า '+r.name+' จ่ายแล้ว '+n+' งวด!');
 }
+var PAY_CUST=-1, PAY_TERM=-1;
+function openPayModal(custIdx){
+  PAY_CUST=custIdx; PAY_TERM=-1;
+  var r=DATA[custIdx]; if(!r){return}
+  document.getElementById('payCustName').textContent=r.name+' ('+r.id+')';
+  document.getElementById('paySelected').textContent='— แตะงวดด้านบนเพื่อเลือก —';
+  document.getElementById('payAmount').value='';
+  document.getElementById('payNote').value='';
+  document.getElementById('payDate').value=fmtDate(new Date());
+  // Build installment chips (show unpaid first)
+  var list=document.getElementById('payInstList');
+  var insts=r.installments||[];
+  if(!insts.length){ list.innerHTML='<div style="color:var(--gy);font-size:13px;text-align:center;padding:10px">ยังไม่มีงวด — ไปที่โปรไฟล์เพื่อสร้างงวด</div>'; }
+  else {
+    list.innerHTML='<div style="font-size:12px;color:var(--gy);margin-bottom:6px">แตะเลือกงวดที่ต้องการบันทึก</div><div style="display:flex;flex-wrap:wrap;gap:6px">'+
+      insts.map(function(ins,idx){
+        var od = ins.status!=='paid' && new Date(ins.dueDate)<new Date();
+        var bg = ins.status==='paid'?'var(--gr)':od?'var(--r)':'var(--bd)';
+        var col = ins.status==='paid'||od?'var(--w)':'var(--n)';
+        return '<button onclick="selectPayTerm('+idx+')" id="payChip'+idx+'" style="border:2px solid transparent;background:'+bg+';color:'+col+';border-radius:8px;padding:7px 10px;font-size:12px;font-weight:600;cursor:pointer;min-width:52px">'+
+          (ins.status==='paid'?'✓ ':'')+'งวด '+ins.term+'<br><span style="font-size:10px;font-weight:400">฿'+fmt(ins.amount)+'</span></button>';
+      }).join('')+'</div>';
+  }
+  document.getElementById('payModal').style.display='flex';
+}
+function selectPayTerm(idx){
+  PAY_TERM=idx;
+  var r=DATA[PAY_CUST]; if(!r||!r.installments[idx])return;
+  var ins=r.installments[idx];
+  document.getElementById('paySelected').textContent='งวด '+ins.term+' • กำหนด '+ins.dueDate+(ins.status==='paid'?' • จ่ายแล้ว':'');
+  document.getElementById('payAmount').value=ins.amount;
+  // highlight selected chip
+  (r.installments||[]).forEach(function(_,k){var c=document.getElementById('payChip'+k);if(c)c.style.border='2px solid transparent'});
+  var sel=document.getElementById('payChip'+idx); if(sel)sel.style.border='2px solid var(--g)';
+}
+function savePayment(){
+  if(PAY_CUST<0){closePayModal();return}
+  if(PAY_TERM<0){alert('กรุณาแตะเลือกงวดก่อนครับ');return}
+  var r=DATA[PAY_CUST]; var ins=r.installments[PAY_TERM];
+  var amt=parseFloat(document.getElementById('payAmount').value)||0;
+  var dt=document.getElementById('payDate').value||fmtDate(new Date());
+  var note=document.getElementById('payNote').value.trim();
+  if(amt<=0){alert('กรุณาใส่ยอดที่จ่าย');return}
+  var wasPaid=ins.status==='paid';
+  ins.status='paid'; ins.paid=amt; ins.paidDate=dt;
+  if(note)ins.note=note;
+  if(!wasPaid)r.paidTerms=(r.paidTerms||0)+1;
+  if(!r.payments)r.payments=[];
+  r.payments.push({term:ins.term,amount:amt,date:dt,note:note,by:(CUR_USER?CUR_USER.name:'')});
+  log(r,'✅ จ่ายงวด '+ins.term+' ฿'+fmt(amt)+' ('+dt+')'+(note?' — '+note:'')+' โดย '+(CUR_USER?CUR_USER.name:''));
+  save();
+  if(typeof renderInsts==='function'&&PI===PAY_CUST){renderInsts(r);renderProgress(r);renderLogs(r);}
+  renderAll();
+  closePayModal();
+  alert('✅ บันทึกการจ่ายงวด '+ins.term+' ฿'+fmt(amt)+' เรียบร้อย!');
+}
+function closePayModal(){document.getElementById('payModal').style.display='none';PAY_CUST=-1;PAY_TERM=-1}
 function toggleInstStatus(termIdx){
   if(PI<0)return;var r=DATA[PI];if(!r.installments||!r.installments[termIdx])return;
   var ins=r.installments[termIdx];
@@ -1463,16 +1614,107 @@ function smartImport(rows,fname){
 
   }
   $('F_preview').style.display='block';
-  $('F_preview').innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>🤖 AI พบ '+buf.length+' รายการจาก '+fname+' ('+(isFormat2?'Format: เงินกู้/ขายฝาก':'Format: เช่าซื้อ')+')</b><div><button class="btn btn-gr btn-sm" onclick="confirmImport()">✅ Import</button> <button class="btn btn-o btn-sm" onclick="cancelImport()">❌ ยกเลิก</button></div></div>';
+  var existCount=DATA.length;
+  var matchCount=0;
+  buf.forEach(function(b){DATA.forEach(function(d){if(d.name&&b.name&&d.name.trim()===b.name.trim())matchCount++})});
+  var newCount=buf.length-matchCount;
+  var mergeInfo=existCount>0?'<div style="font-size:11px;background:#E3F2FD;padding:6px 10px;border-radius:6px;margin-top:6px">🔄 Smart Merge: อัปเดต ~'+matchCount+' | เพิ่มใหม่ ~'+newCount+' | 💰 ประวัติจ่ายไม่หาย</div>':'<div style="font-size:11px;background:#E8F5E9;padding:6px 10px;border-radius:6px;margin-top:6px">📥 Import ครั้งแรก: '+buf.length+' ราย</div>';
+  $('F_preview').style.display='block';
+  $('F_preview').innerHTML='<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center"><b>🤖 AI พบ '+buf.length+' รายการจาก '+fname+'</b><div><button class="btn btn-gr btn-sm" onclick="confirmImport()">✅ Import</button> <button class="btn btn-o btn-sm" onclick="cancelImport()">❌ ยกเลิก</button></div></div>'+mergeInfo+'</div>';
   window._importBuf=buf;
 }
 function confirmImport(){
-  DATA=window._importBuf.slice();
-  // Run Smart Fix after import
+  var incoming=window._importBuf.slice();
+  var isFirstImport=DATA.length===0;
+  
+  if(isFirstImport){
+    // First import: replace all
+    DATA=incoming;
+    var fixes=smartFixAll();
+    save();renderAll();$('F_preview').style.display='none';
+    var withInst=DATA.filter(function(r){return r.installments&&r.installments.length>0}).length;
+    alert('✅ Import ครั้งแรก: '+DATA.length+' ราย!\n📋 สร้างงวด: '+withInst+' ราย\n🔧 Smart Fix: '+fixes+' รายการ');
+    return;
+  }
+  
+  // Smart Merge: update existing + add new + KEEP payments
+  var merged=0,added=0,updated=0,kept=0;
+  
+  incoming.forEach(function(inc){
+    // Find match by name (primary) + cost (secondary)
+    var match=null;var matchIdx=-1;
+    DATA.forEach(function(existing,ei){
+      if(!match){
+        var nameMatch=existing.name&&inc.name&&existing.name.trim()===inc.name.trim();
+        var costMatch=existing.cost===inc.cost;
+        var idMatch=existing.id&&inc.id&&existing.id===inc.id;
+        if(idMatch||(nameMatch&&costMatch)||nameMatch){match=existing;matchIdx=ei}
+      }
+    });
+    
+    if(match){
+      // UPDATE: merge info but KEEP payments, memo, logs
+      match.cost=inc.cost||match.cost;
+      match.installment=inc.installment||match.installment;
+      match.product=inc.product||match.product;
+      match.contractEnd=inc.contractEnd||match.contractEnd;
+      match.returnDate=inc.returnDate||match.returnDate;
+      match.profitMonth=inc.profitMonth||match.profitMonth;
+      match.profit69=inc.profit69||match.profit69;
+      match.profit70=inc.profit70||match.profit70;
+      match.currentTerm=inc.currentTerm||match.currentTerm;
+      
+      // Update totalTerms if incoming is larger
+      if(inc.totalTerms>0&&inc.totalTerms!==(match.totalTerms||0)){
+        match.totalTerms=inc.totalTerms;
+      }
+      
+      // Sync paid terms: only INCREASE, never decrease
+      if(inc.paidTerms>0&&inc.paidTerms>(match.paidTerms||0)){
+        var oldPaid=match.paidTerms||0;
+        match.paidTerms=inc.paidTerms;
+        // Mark additional installments as paid
+        if(match.installments){
+          for(var k=oldPaid;k<inc.paidTerms&&k<match.installments.length;k++){
+            if(match.installments[k].status!=='paid'){
+              match.installments[k].status='paid';
+              match.installments[k].paid=match.installments[k].amount;
+              match.installments[k].paidDate='sync from Excel';
+            }
+          }
+        }
+        log(match,'📥 Sync งวดจ่าย: '+oldPaid+' → '+inc.paidTerms+' (จาก Excel)');
+      }
+      
+      // Regenerate installments ONLY if none exist
+      if((!match.installments||match.installments.length===0)&&inc.installments&&inc.installments.length>0){
+        match.installments=inc.installments;
+      }
+      
+      log(match,'📥 Smart Merge: อัปเดตข้อมูลจาก Excel');
+      updated++;
+    }else{
+      // ADD: new customer
+      DATA.push(inc);
+      added++;
+    }
+    merged++;
+  });
+  
+  // Count kept (in Web but not in Excel)
+  kept=DATA.length-merged;
+  
   var fixes=smartFixAll();
   save();renderAll();$('F_preview').style.display='none';
-  var withInst=DATA.filter(function(r){return r.installments&&r.installments.length>0}).length;
-  alert('✅ Import '+DATA.length+' ราย!\n📋 สร้างงวดอัตโนมัติ: '+withInst+' ราย\n🔧 Smart Fix: '+fixes+' รายการถูกแก้ไข');
+  
+  alert('🔄 Smart Merge เรียบร้อย!\n\n'+
+    '📊 Excel: '+incoming.length+' ราย\n'+
+    '✏️ อัปเดต: '+updated+' ราย\n'+
+    '➕ เพิ่มใหม่: '+added+' ราย\n'+
+    '🔒 เก็บไว้ (ไม่มีใน Excel): '+(DATA.length-incoming.length)+' ราย\n'+
+    '💰 ประวัติจ่าย: ไม่ถูกลบ ✅\n'+
+    '🔧 Smart Fix: '+fixes+' รายการ\n\n'+
+    'รวมทั้งหมด: '+DATA.length+' ราย');
 }
 function cancelImport(){window._importBuf=[];$('F_preview').style.display='none'}
 
@@ -1749,6 +1991,7 @@ doLogin = function(){
   if(found){
     if(found.active===false){$('L_err').style.display='block';$('L_err').textContent='❌ บัญชีถูกปิดใช้งาน ติดต่อ Owner';return}
     CUR_USER=found;sessionStorage.setItem('jf_in',JSON.stringify(found));
+    if($('L_remember')&&$('L_remember').checked){localStorage.setItem('jf_remember',JSON.stringify(found))}
     $('PG_LOGIN').style.display='none';$('PG_MAIN').style.display='block';
     $('T_role').textContent='👤 '+found.name+' — '+found.role;
     updateDate();glog('🔑 เข้าสู่ระบบ');
@@ -1760,5 +2003,36 @@ doLogin = function(){
 // ===== INIT =====
 renderAll();
 </script>
+
+<!-- ===== PAYMENT MODAL (mobile-friendly) ===== -->
+<div id="payModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:flex-end;justify-content:center">
+  <div style="background:var(--w);width:100%;max-width:480px;border-radius:16px 16px 0 0;max-height:90vh;overflow-y:auto;animation:slideUp .2s">
+    <div style="position:sticky;top:0;background:var(--n);color:var(--w);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;border-radius:16px 16px 0 0">
+      <div><div style="font-weight:700;font-size:15px">💰 บันทึกการจ่ายเงิน</div><div id="payCustName" style="font-size:12px;color:var(--gl)"></div></div>
+      <span onclick="closePayModal()" style="cursor:pointer;font-size:22px;line-height:1">×</span>
+    </div>
+    <div style="padding:16px">
+      <div id="payInstList" style="margin-bottom:14px"></div>
+      <div style="border-top:1px solid var(--bd);padding-top:14px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:10px">➕ บันทึกการจ่ายงวดที่เลือก</div>
+        <label style="font-size:12px;color:var(--gy);display:block;margin-bottom:3px">งวดที่เลือก</label>
+        <div id="paySelected" style="font-size:14px;font-weight:600;color:var(--n);margin-bottom:10px;padding:8px 10px;background:var(--lt);border-radius:8px">— ยังไม่ได้เลือกงวด —</div>
+        <label style="font-size:12px;color:var(--gy);display:block;margin-bottom:3px">ยอดที่จ่าย (บาท)</label>
+        <input id="payAmount" type="number" inputmode="numeric" style="width:100%;padding:11px;border:1px solid var(--bd);border-radius:8px;font-size:15px;margin-bottom:10px" placeholder="0">
+        <label style="font-size:12px;color:var(--gy);display:block;margin-bottom:3px">วันที่จ่าย</label>
+        <input id="payDate" type="date" style="width:100%;padding:11px;border:1px solid var(--bd);border-radius:8px;font-size:15px;margin-bottom:10px">
+        <label style="font-size:12px;color:var(--gy);display:block;margin-bottom:3px">หมายเหตุ (ถ้ามี)</label>
+        <input id="payNote" type="text" style="width:100%;padding:11px;border:1px solid var(--bd);border-radius:8px;font-size:15px;margin-bottom:14px" placeholder="เช่น โอนผ่าน PromptPay">
+        <button class="btn btn-gr btn-full" onclick="savePayment()" style="font-size:15px;padding:13px">✅ บันทึกการจ่าย</button>
+        <button class="btn btn-o btn-full" onclick="closePayModal()" style="margin-top:8px">ปิด</button>
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@media(min-width:560px){#payModal{align-items:center}#payModal>div{border-radius:16px}}
+</style>
+
 </body>
 </html>
