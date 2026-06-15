@@ -130,7 +130,6 @@ tr:hover td{background:rgba(201,171,86,.04)}
 <div><b style="font-size:15px">JAIFU Operations</b><small style="display:block;font-size:11px;color:var(--gy)" id="T_role"></small></div>
 </div>
 <div style="display:flex;align-items:center;gap:10px">
-<button class="btn btn-o btn-sm" onclick="forceCloudLoad()" title="โหลดข้อมูลจาก Cloud">🔄</button>
 <span id="syncStatus" style="font-size:10px;padding:3px 8px;border-radius:10px;background:#E8F5E9;color:var(--gr)">☁️ Synced</span>
 <span style="font-size:11px;color:var(--gy)" id="T_date"></span>
 <button class="btn btn-o btn-sm" onclick="doLogout()">🚪 ออก</button>
@@ -215,7 +214,7 @@ tr:hover td{background:rgba(201,171,86,.04)}
 <!-- TABLE -->
 <div style="font-size:11px;color:var(--gy);margin-bottom:4px;padding:0 4px">💡 ดับเบิลคลิกที่ช่องในตารางเพื่อแก้ไขข้อมูลโดยตรง | Enter = บันทึก | Esc = ยกเลิก</div>
 <div class="tw"><table><thead><tr>
-<th>รหัส</th><th>ชื่อเล่น</th><th>ต้นทุน</th><th>ผ่อน/งวด</th><th>งวด</th><th>จ่ายแล้ว</th><th>เหลือ</th><th>ทวงถัดไป</th><th>กำไร/เดือน</th><th>สินค้า</th><th>สถานะ</th><th>จัดการ</th>
+<th>รหัส</th><th>ชื่อเล่น</th><th>ต้นทุน</th><th>ผ่อน/งวด</th><th>งวด</th><th>จ่ายแล้ว</th><th>เหลือ</th><th>เริ่มสัญญา</th><th>หมดสัญญา</th><th>กำไร/เดือน</th><th>สินค้า</th><th>สถานะ</th><th>จัดการ</th>
 </tr></thead><tbody id="C_tbody"></tbody></table></div>
 </div>
 </div>
@@ -372,12 +371,9 @@ tr:hover td{background:rgba(201,171,86,.04)}
 <div id="P_payments" style="max-height:180px;overflow-y:auto;border:1px solid var(--bd);border-radius:8px;margin-bottom:10px"></div>
 
 <!-- INSTALLMENTS -->
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:6px">
-<div style="font-size:13px;font-weight:700">📋 รายละเอียดงวด <span style="font-size:10px;color:var(--gy);font-weight:400">— คลิกงวดเพื่อเปลี่ยนสถานะ</span></div>
-<div style="display:flex;gap:4px">
-<button class="btn btn-bl btn-sm" onclick="quickSetPaid()">⚡ ตั้งค่างวดที่จ่ายแล้ว</button>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+<div style="font-size:13px;font-weight:700">📋 รายละเอียดงวด</div>
 <button class="btn btn-g btn-sm" onclick="genInst()">🔄 สร้างงวดใหม่</button>
-</div>
 </div>
 <div id="P_insts" style="max-height:250px;overflow-y:auto"></div>
 <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
@@ -449,7 +445,7 @@ tr:hover td{background:rgba(201,171,86,.04)}
 <!-- ============================================================ -->
 <script>
 // ===== CONFIG =====
-var API_URL = localStorage.getItem('jf_api') || 'https://script.google.com/macros/s/AKfycbz3Y54YHV7jG8AFc3Eww2eJXGakVpAfeWxNF9upnhFQGJU3sgcdHgkUA56hW_SzBrz1RQ/exec';
+var API_URL = localStorage.getItem('jf_api') || 'https://script.google.com/macros/s/AKfycbzWNeqBgAT7XBPT7P6HUI_j3uuUafEFxxJao3wdrgiKM60N1CxLFhY-uOBC9Bkow03_kg/exec';
 var LINE_TOKEN = localStorage.getItem('jf_line') || '';
 var DEFAULT_USERS = [
   {user:'krist.c', pass:'indyza456', role:'Owner', name:'Indy'},
@@ -611,11 +607,8 @@ function save(){
 }
 function cloudLoad(){
   if(!API_URL){renderAll();return}
-  var ss=$('syncStatus');if(ss){ss.textContent='⏳ กำลังโหลด...';ss.style.background='#E3F2FD';ss.style.color='var(--bl)'}
-  fetch(API_URL+'?action=loadData',{method:'GET'}).then(function(r){
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    return r.json();
-  }).then(function(d){
+  var ss=$('syncStatus');if(ss){ss.textContent='⏳ Loading...';ss.style.background='#E3F2FD';ss.style.color='var(--bl)'}
+  fetch(API_URL+'?action=loadData').then(function(r){return r.json()}).then(function(d){
     if(d.success){
       try{
         var cloudData=JSON.parse(d.data||'[]');
@@ -623,54 +616,26 @@ function cloudLoad(){
         var cloudTasks=JSON.parse(d.tasks||'[]');
         var cloudLog=JSON.parse(d.glog||'[]');
         
-        // Always use cloud data if it has data and local is empty or smaller
-        if(cloudData.length>0&&(DATA.length===0||cloudData.length>=DATA.length)){
+        // Use cloud data if it has more data than local
+        if(cloudData.length>=DATA.length&&cloudData.length>0){
           DATA=cloudData;localStorage.setItem('jf_data',JSON.stringify(DATA));
-          console.log('Cloud: loaded '+DATA.length+' customers');
         }
         if(cloudUsers.length>0){
+          // Merge: keep default owners + cloud employees
           var owners=DEFAULT_USERS.slice();
           cloudUsers.forEach(function(u){if(u.role!=='Owner'&&!owners.find(function(o){return o.user===u.user}))owners.push(u)});
           USERS=owners;saveUsers();
         }
         if(cloudTasks.length>0){TASKS=cloudTasks;localStorage.setItem('jf_tasks',JSON.stringify(TASKS))}
         if(cloudLog.length>0){G_LOG=cloudLog;localStorage.setItem('jf_glog',JSON.stringify(G_LOG))}
-      }catch(e){console.log('Cloud parse error:',e)}
-    }else{console.log('Cloud load response:',d)}
-    var ss=$('syncStatus');
-    if(ss){ss.textContent='☁️ '+DATA.length+' ราย';ss.style.background='#E8F5E9';ss.style.color='var(--gr)'}
+      }catch(e){console.log('Parse error:',e)}
+    }
+    var ss=$('syncStatus');if(ss){ss.textContent='☁️ Synced';ss.style.background='#E8F5E9';ss.style.color='var(--gr)'}
     renderAll();
   }).catch(function(e){
     console.log('Cloud load failed:',e);
-    var ss=$('syncStatus');if(ss){ss.textContent='⚠️ Offline';ss.style.background='#FFEBEE';ss.style.color='var(--r)'}
+    var ss=$('syncStatus');if(ss){ss.textContent='📱 Local';ss.style.background='var(--cr)';ss.style.color='var(--gd)'}
     renderAll();
-  });
-}
-function forceCloudLoad(){
-  if(!API_URL){alert('⚠️ ไม่มี API URL');return}
-  var ss=$('syncStatus');if(ss){ss.textContent='⏳ Loading...';ss.style.background='#E3F2FD';ss.style.color='var(--bl)'}
-  fetch(API_URL+'?action=loadData').then(function(r){return r.json()}).then(function(d){
-    if(d.success){
-      try{
-        var cd=JSON.parse(d.data||'[]');
-        if(cd.length>0){
-          DATA=cd;localStorage.setItem('jf_data',JSON.stringify(DATA));
-          var cu=JSON.parse(d.users||'[]');
-          if(cu.length>0){USERS=cu;saveUsers()}
-          var ct=JSON.parse(d.tasks||'[]');
-          if(ct.length>0){TASKS=ct;localStorage.setItem('jf_tasks',JSON.stringify(TASKS))}
-          renderAll();
-          if(ss){ss.textContent='☁️ '+DATA.length+' ราย';ss.style.background='#E8F5E9';ss.style.color='var(--gr)'}
-          alert('✅ โหลด '+DATA.length+' ลูกค้า จาก Cloud สำเร็จ!');
-        }else{
-          if(ss){ss.textContent='☁️ ว่าง';ss.style.background='#FFF3E0';ss.style.color='var(--or)'}
-          alert('⚠️ Cloud ยังไม่มีข้อมูล — Import Excel ใน Desktop ก่อน');
-        }
-      }catch(e){alert('❌ Parse error: '+e)}
-    }else{alert('❌ '+d.error)}
-  }).catch(function(e){
-    if(ss){ss.textContent='⚠️ Error';ss.style.background='#FFEBEE';ss.style.color='var(--r)'}
-    alert('❌ เชื่อมต่อ Cloud ไม่ได้: '+e);
   });
 }
 var _syncTimer=null;
@@ -929,20 +894,6 @@ function renderCust(){
     var hasOverdue=r.installments&&r.installments.some(function(ins){return ins.status!=='paid'&&new Date(ins.dueDate)<new Date()});
     var statusBg=hasOverdue?'bg-r':r.status==='completed'?'bg-gr':'bg-g';
     var statusTxt=hasOverdue?'⚠️ ค้าง':r.status==='completed'?'✅ ครบ':'Active';
-    // Find next due date
-    var nextDueText='-',nextDueColor='var(--gy)';
-    if(r.installments){
-      var nextInst=r.installments.find(function(ins){return ins.status!=='paid'});
-      if(nextInst){
-        var nd=new Date(nextInst.dueDate);
-        var diff=Math.floor((new Date()-nd)/(864e5));
-        var m=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-        nextDueText=nd.getDate()+' '+m[nd.getMonth()];
-        if(diff>0){nextDueText+=' (เลย '+diff+'วัน)';nextDueColor='var(--r)'}
-        else if(diff===0){nextDueText+=' (วันนี้!)';nextDueColor='var(--or)'}
-        else{nextDueText+=' (อีก '+Math.abs(diff)+'วัน)';nextDueColor='var(--gr)'}
-      }
-    }
     return '<tr style="'+(hasOverdue?'background:#FFF8F8':'')+'">'+
     '<td style="font-weight:600" ondblclick="editCell('+i+',"id",this)">'+r.id+'</td>'+
     '<td ondblclick="editCell('+i+',"name",this)" style="cursor:pointer" title="ดับเบิลคลิกเพื่อแก้ไข">'+r.name+'</td>'+
@@ -1116,51 +1067,6 @@ function renderPayments(r){
     return '<div style="display:flex;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--bd);font-size:11px"><div><b>฿'+fmt(p.amount)+'</b> <span class="bg" style="background:'+col+'22;color:'+col+'">'+lbl+'</span>'+(p.slip?' 📎':'')+'<div style="color:var(--gy)">'+p.date+' | '+p.by+(p.note?' | '+p.note:'')+'</div></div></div>'
   }).join('');
 }
-function quickSetPaid(){
-  if(PI<0)return;var r=DATA[PI];
-  if(!r.installments||!r.installments.length){alert('ยังไม่มีงวด กดสร้างงวดก่อน');return}
-  var current=0;
-  r.installments.forEach(function(ins){if(ins.status==='paid')current++});
-  var n=prompt('จ่ายไปแล้วกี่งวด? (ปัจจุบัน: '+current+'/'+r.installments.length+')',current);
-  if(n===null)return;
-  n=parseInt(n);
-  if(isNaN(n)||n<0||n>r.installments.length){alert('ใส่ตัวเลข 0-'+r.installments.length);return}
-  
-  r.installments.forEach(function(ins,i){
-    if(i<n){
-      ins.status='paid';ins.paid=ins.amount;ins.paidDate=ins.paidDate||'จ่ายแล้ว';
-    }else{
-      ins.status='pending';ins.paid=0;ins.paidDate=null;
-    }
-  });
-  r.paidTerms=n;
-  
-  // Auto-update status
-  if(n>=r.installments.length)r.status='completed';
-  else r.status='active';
-  
-  log(r,'⚡ ตั้งค่าจ่ายแล้ว '+n+'/'+r.installments.length+' งวด โดย '+(CUR_USER?CUR_USER.name:''));
-  save();renderInsts(r);renderProgress(r);renderLogs(r);renderAll();
-  alert('✅ ตั้งค่า '+r.name+' จ่ายแล้ว '+n+' งวด!');
-}
-function toggleInstStatus(termIdx){
-  if(PI<0)return;var r=DATA[PI];if(!r.installments||!r.installments[termIdx])return;
-  var ins=r.installments[termIdx];
-  if(ins.status==='paid'){
-    // Unpay: revert to pending
-    if(!confirm('ยกเลิกการชำระงวด '+ins.term+'?'))return;
-    ins.status='pending';ins.paid=0;ins.paidDate=null;
-    r.paidTerms=Math.max(0,(r.paidTerms||0)-1);
-    log(r,'↩️ ยกเลิกชำระงวด '+ins.term+' โดย '+(CUR_USER?CUR_USER.name:''));
-  }else{
-    // Pay: mark as paid
-    if(!confirm('ยืนยันชำระงวด '+ins.term+' ฿'+fmt(ins.amount)+'?'))return;
-    ins.status='paid';ins.paid=ins.amount;ins.paidDate=fmtDate(new Date());
-    r.paidTerms=(r.paidTerms||0)+1;
-    log(r,'✅ ชำระงวด '+ins.term+' ฿'+fmt(ins.amount)+' (ย้อนหลัง) โดย '+(CUR_USER?CUR_USER.name:''));
-  }
-  save();renderInsts(r);renderProgress(r);renderLogs(r);renderAll();
-}
 function renderInsts(r){
   var el=$('P_insts');if(!el)return;
   var insts=r.installments||[];
@@ -1172,7 +1078,7 @@ function renderInsts(r){
     var paidPct=ins.amount>0?Math.round((ins.paid||0)/ins.amount*100):0;
     var stBg=ins.status==='paid'?'bg-gr':ins.status==='partial'?'bg-or':isOver?'bg-r':'bg-g';
     var stTxt=ins.status==='paid'?'✅ ครบ':ins.status==='partial'?'จ่าย '+paidPct+'%':isOver?'⚠️ เลย '+diff+' วัน':'รอ';
-    return '<div style="display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid var(--bd);cursor:pointer;'+(isOver&&ins.status!=='paid'?'background:#FFF0F0':'')+'" onclick="toggleInstStatus('+i+')" title="คลิกเพื่อเปลี่ยนสถานะ จ่าย/ยังไม่จ่าย"><div style="width:30px;height:30px;border-radius:50%;background:'+(ins.status==='paid'?'var(--gr)':isOver?'var(--r)':'var(--bd)')+';color:var(--w);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">'+(ins.status==='paid'?'✓':ins.term)+'</div><div style="flex:1;font-size:11px"><div><b>งวด '+ins.term+'</b> ฿'+fmt(ins.amount)+' <span class="bg '+stBg+'">'+stTxt+'</span></div><div style="color:var(--gy)">กำหนด: '+ins.dueDate+(ins.paidDate?' | จ่าย: '+ins.paidDate:'')+'</div>'+((ins.paid||0)>0&&ins.paid<ins.amount?'<div style="color:var(--or)">จ่ายแล้ว ฿'+fmt(ins.paid)+'/฿'+fmt(ins.amount)+'</div>':'')+(fee>0?'<div style="color:var(--r);font-weight:600">ค่าปรับ 1%×'+(diff-3)+'วัน = ฿'+fmt(fee)+'</div>':'')+'</div></div>'
+    return '<div style="display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid var(--bd);'+(isOver&&ins.status!=='paid'?'background:#FFF0F0':'')+'"><div style="width:30px;height:30px;border-radius:50%;background:'+(ins.status==='paid'?'var(--gr)':isOver?'var(--r)':'var(--bd)')+';color:var(--w);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">'+ins.term+'</div><div style="flex:1;font-size:11px"><div><b>งวด '+ins.term+'</b> ฿'+fmt(ins.amount)+' <span class="bg '+stBg+'">'+stTxt+'</span></div><div style="color:var(--gy)">กำหนด: '+ins.dueDate+(ins.paidDate?' | จ่าย: '+ins.paidDate:'')+'</div>'+((ins.paid||0)>0&&ins.paid<ins.amount?'<div style="color:var(--or)">จ่ายแล้ว ฿'+fmt(ins.paid)+'/฿'+fmt(ins.amount)+'</div>':'')+(fee>0?'<div style="color:var(--r);font-weight:600">ค่าปรับ 1%×'+(diff-3)+'วัน = ฿'+fmt(fee)+'</div>':'')+'</div></div>'
   }).join('');
 }
 function genInst(){
@@ -1301,18 +1207,14 @@ function smartImport(rows,fname){
   function fd(v){if(!v)return '';if(v instanceof Date){var y=v.getFullYear();if(y>=1960&&y<=1980)y+=600;else if(y<2500)y+=543;return v.getDate()+'/'+(v.getMonth()+1)+'/'+y}return String(v).replace(/2512/g,'2569').replace(/2513/g,'2570')}
   
   // Parse "5จ/30ว" → {total:5, cycle:30}
-  // "30ว" = cycle only, "10ง" = terms only
   function parseTerms(s){
     s=String(s||'');
-    // Pattern 1: Xง/Yว (terms + cycle)
     var match=s.match(/(\d+)\s*[จง].*?(\d+)\s*[วw]/i);
     if(match)return{total:parseInt(match[1]),cycle:parseInt(match[2])};
-    // Pattern 2: Xง (terms only)
     match=s.match(/(\d+)\s*[จง]/i);
     if(match)return{total:parseInt(match[1]),cycle:30};
-    // Pattern 3: Xว (cycle only — NOT totalTerms!)
-    match=s.match(/(\d+)\s*[วw]/i);
-    if(match)return{total:0,cycle:parseInt(match[1])};
+    match=s.match(/(\d+)/);
+    if(match)return{total:parseInt(match[1]),cycle:30};
     return{total:0,cycle:30};
   }
   
@@ -1367,7 +1269,7 @@ function smartImport(rows,fname){
       var termsData=parseTerms(r[m.terms]);
       var currentData=parseCurrent(r[m.currentTerm]||'');
       totalTerms=termsData.total||currentData.total||0;
-      paidTerms=0; // Don't auto-detect, admin sets manually
+      paidTerms=currentData.paid||0;
       cycle=termsData.cycle||30;
       agentVal=currentData.agent||String(r[m.agent]||'');
       
@@ -1429,7 +1331,9 @@ function smartImport(rows,fname){
       
       for(var j=1;j<=totalTerms;j++){
         var due=new Date(startD.getFullYear(),startD.getMonth()+j,Math.min(payDay,28));
-        autoInsts.push({term:j,amount:inst,paid:0,status:'pending',dueDate:fmtDate(due),paidDate:null,lateFee:0,partials:[]});
+        var instStatus='pending';
+        if(j<=paidTerms)instStatus='paid';
+        autoInsts.push({term:j,amount:inst,paid:instStatus==='paid'?inst:0,status:instStatus,dueDate:fmtDate(due),paidDate:instStatus==='paid'?'imported':null,lateFee:0,partials:[]});
       }
     }
     
@@ -1439,7 +1343,7 @@ function smartImport(rows,fname){
       cost:cost,
       installment:inst,
       returnDate:fd(r[m.ret]),
-      terms:totalTerms>0?totalTerms+'งวด/'+cycle+'วัน':cycle+'วัน (ไม่จำกัดงวด)',
+      terms:String(r[m.terms]||'')+' ('+totalTerms+'งวด/'+cycle+'วัน)',
       totalTerms:totalTerms,
       paidTerms:paidTerms,
       cycle:cycle,
@@ -1559,7 +1463,8 @@ function smartFixAll(){
       for(var j=1;j<=r.totalTerms;j++){
         var due=new Date(startD.getFullYear(),startD.getMonth()+j,Math.min(payDay,28));
         var instStatus='pending';
-        r.installments.push({term:j,amount:r.installment,paid:0,status:'pending',dueDate:fmtDate(due),paidDate:null,lateFee:0,partials:[]});
+        if(j<=r.paidTerms)instStatus='paid';
+        r.installments.push({term:j,amount:r.installment,paid:instStatus==='paid'?r.installment:0,status:instStatus,dueDate:fmtDate(due),paidDate:instStatus==='paid'?'imported':null,lateFee:0,partials:[]});
       }
       r.payType='monthly';
       r.payDay=payDay;
